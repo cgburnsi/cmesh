@@ -1,8 +1,9 @@
-''' types.py
+''' core/data_types.py
     ------------------
     Central definition of memory layout
 '''
 import numpy as np
+
 
 # NODE: ID, X, Y
 NODE_DTYPE = np.dtype([('id', 'i4'), ('x',  'f8'), ('y',  'f8')])
