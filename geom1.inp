@@ -1,18 +1,17 @@
-# geom1.inp
-
 [nodes]
 #id     x       y
 1		0.0		0.0	
 2 		1.0		1.0 
 3		1.0 	0.0 
 
-[edges]
-#id     n1      n2
-1		1		2
-2		2		3
-3		3		1
+[faces]
+#id     n1      n2      tag
+1		1		2       1
+2		2		3       1
+3		3		1       1
 
-[cells]
-#id     e1      e2      e3
-1       1       2       3
-
+[constraints]
+#id     type    target  p1      p2      p3
+# Type 1 = Line (p1=nx, p2=ny, p3=c)
+# Type 2 = Circle (p1=cx, p2=cy, p3=r)
+1       2       1       0.0     0.0     0.5

@@ -1,0 +1,20 @@
+.
+├── core
+│   ├── data_types.py
+│   ├── __init__.py
+│   ├── input_reader.py
+│   └── __pycache__
+│       ├── data_types.cpython-312.pyc
+│       ├── __init__.cpython-312.pyc
+│       └── input_reader.cpython-312.pyc
+├── ex03_nozzle.inp
+├── ex2.inp
+├── folder_structure.txt
+├── geom1.inp
+├── main.py
+├── mesh
+└── __pycache__
+    ├── mesh_types.cpython-312.pyc
+    └── types.cpython-311.pyc
+
+5 directories, 13 files

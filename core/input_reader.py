@@ -2,7 +2,7 @@ import sys
 import numpy as np
 from enum import Enum, auto
 
-from core import NODE_DTYPE, EDGE_DTYPE, CELL_DTYPE
+from core import NODE_DTYPE, FACE_DTYPE, CELL_DTYPE, CONSTRAINT_DTYPE
 
 
 
@@ -59,10 +59,12 @@ class Lexer:
 
     # Return the next token
     def getToken(self):
-        self.skipWhitespace()
-        self.skipComment()
-        self.skipWhitespace() # Skip whitespace again in case comment ended with newline
-
+        while True:
+            self.skipWhitespace()
+            if self.curChar == '#':
+                self.skipComment()
+            else:
+                break
         token = None
 
         if self.curChar == '\0':
@@ -82,7 +84,7 @@ class Lexer:
             token = Token(tokenText, TokenType.NUMBER)
             self.nextChar()
         elif self.curChar.isalpha():
-            # Parsing Identifiers (nodes, edges, etc.)
+            # Parsing Identifiers (nodes, faces, etc.)
             startPos = self.curPos
             while self.peek().isalnum():
                 self.nextChar()
@@ -105,8 +107,9 @@ class Parser:
 
         # -- Storage for our Data (The "Emitter" target) --
         self.nodes_list = []
-        self.edges_list = []
+        self.faces_list = []
         self.cells_list = []
+        self.constraints_list = []  # <--- NEW STORAGE
 
     # Return true if the current token matches
     def checkToken(self, kind):
@@ -162,8 +165,8 @@ class Parser:
                 # Append as tuple
                 self.nodes_list.append((nid, x, y))
 
-            elif section_name == "edges":
-                # All integers for EDGE_DTYPE
+            elif section_name == "faces":
+                # All integers for FACE_DTYPE
                 eid = int(self.curToken.text)
                 self.match(TokenType.NUMBER)
                 
@@ -173,23 +176,37 @@ class Parser:
                 n2 = int(self.curToken.text)
                 self.match(TokenType.NUMBER)
                 
-                self.edges_list.append((eid, n1, n2))
+                tag = int(self.curToken.text); self.match(TokenType.NUMBER)
+                
+                self.faces_list.append((eid, n1, n2, tag))
 
+            elif section_name == "constraints":
+                # Expecting: ID, TYPE, TARGET, P1, P2, P3
+                cid = int(self.curToken.text); self.match(TokenType.NUMBER)
+                typ = int(self.curToken.text); self.match(TokenType.NUMBER)
+                tgt = int(self.curToken.text); self.match(TokenType.NUMBER)
+                
+                p1 = float(self.curToken.text); self.match(TokenType.NUMBER)
+                p2 = float(self.curToken.text); self.match(TokenType.NUMBER)
+                p3 = float(self.curToken.text); self.match(TokenType.NUMBER)
+
+                self.constraints_list.append((cid, typ, tgt, p1, p2, p3))
+                
             elif section_name == "cells":
                 # All integers for CELL_DTYPE
                 cid = int(self.curToken.text)
                 self.match(TokenType.NUMBER)
                 
-                e1 = int(self.curToken.text)
+                f1 = int(self.curToken.text)
                 self.match(TokenType.NUMBER)
                 
-                e2 = int(self.curToken.text)
+                f2 = int(self.curToken.text)
                 self.match(TokenType.NUMBER)
                 
-                e3 = int(self.curToken.text)
+                f3 = int(self.curToken.text)
                 self.match(TokenType.NUMBER)
                 
-                self.cells_list.append((cid, e1, e2, e3))
+                self.cells_list.append((cid, f1, f2, f3))
             
             else:
                 self.abort(f"Unknown section header: {section_name}")
@@ -199,8 +216,9 @@ class Parser:
         # converting lists of tuples to structured NumPy arrays
         return {
             "nodes": np.array(self.nodes_list, dtype=NODE_DTYPE),
-            "edges": np.array(self.edges_list, dtype=EDGE_DTYPE),
-            "cells": np.array(self.cells_list, dtype=CELL_DTYPE)
+            "faces": np.array(self.faces_list, dtype=FACE_DTYPE),
+            "cells": np.array(self.cells_list, dtype=CELL_DTYPE),
+            "constraints": np.array(self.constraints_list, dtype=CONSTRAINT_DTYPE)
         }
 
 

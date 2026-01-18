@@ -3,7 +3,7 @@
     Core Utilities
 '''
 
-from .data_types import NODE_DTYPE, EDGE_DTYPE, CELL_DTYPE
+from .data_types import NODE_DTYPE, FACE_DTYPE, CELL_DTYPE, CONSTRAINT_DTYPE
 from .input_reader import input_reader
 
 
