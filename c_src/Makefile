@@ -4,7 +4,7 @@ CC = gcc
 CFLAGS = -O2 -Wall -Wextra
 TARGET = main
 
-SRCS = ex1.c 
+SRCS = ex2.c 
 OBJS = $(SRCS:.c=.o)
 
 all: $(TARGET)
