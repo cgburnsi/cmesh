@@ -1,4 +1,5 @@
-[nodes]
+# Run this once to fix the file on disk
+clean_geometry = """[nodes]
 1   0.0   0.0
 2   0.0   2.0
 3   1.0   2.0
@@ -18,3 +19,9 @@
 6   6   1   1
 
 [cells]
+"""
+
+with open('geom1.inp', 'w') as f:
+    f.write(clean_geometry)
+
+print("geom1.inp has been overwritten with clean data.")

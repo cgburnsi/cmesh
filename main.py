@@ -1,128 +1,115 @@
 ''' main.py '''
 import numpy as np
 import matplotlib.pyplot as plt
-import matplotlib.tri as mtri  # <--- This line defines 'mtri'
-from core import input_reader
-from mesh import generate_initial_points
-from mesh import generate_initial_points, triangulate_and_filter
+import matplotlib.tri as mtri
+from scipy.spatial import Delaunay
 
+# Core Imports
+from core import input_reader
+from mesh.containment import check_points_inside
+
+# Initialization Imports
+# We use the separate functions we defined to build the layers
+from mesh.initialization import resample_boundary_points, generate_inner_points
+
+# Smoothing Imports
 from mesh.smoothing import smooth_mesh
 
-
-
-
-#import matplotlib.pyplot as plt
-#import numpy as np
-#from core import input_reader
-#from mesh import compute_face_metrics, project_points_to_boundary
-
-def plot_results(nodes, faces, query_points, snapped_points):
-    """
-    Visualizes the boundary, query points, and their snapped locations.
-    """
-    fig, ax = plt.subplots(figsize=(8, 8))
-    
-    # --- 1. Plot the Boundary Faces ---
-    # Create a quick lookup for node coordinates: ID -> (x, y)
-    node_map = {n['id']: (n['x'], n['y']) for n in nodes}
-    
-    # Loop over faces and plot segments
-    for i, face in enumerate(faces):
-        n1_id, n2_id = face['n1'], face['n2']
-        p1 = node_map[n1_id]
-        p2 = node_map[n2_id]
-        
-        # Plot line segment
-        # Only label the first one to avoid messing up the legend
-        label = 'Boundary' if i == 0 else ""
-        ax.plot([p1[0], p2[0]], [p1[1], p2[1]], 'k-', linewidth=2, label=label)
-
-    # --- 2. Plot Query Points (Red) ---
-    ax.scatter(query_points[:, 0], query_points[:, 1], 
-               c='red', s=80, label='Query Points', zorder=5)
-
-    # --- 3. Plot Snapped Points (Blue) ---
-    ax.scatter(snapped_points[:, 0], snapped_points[:, 1], 
-               c='blue', s=80, label='Snapped Points', zorder=5)
-
-    # --- 4. Draw Connecting Arrows ---
-    for i in range(len(query_points)):
-        qx, qy = query_points[i]
-        sx, sy = snapped_points[i]
-        
-        # Draw dashed arrow from Query -> Snapped
-        ax.arrow(qx, qy, sx-qx, sy-qy, 
-                 head_width=0.03, length_includes_head=True, 
-                 fc='gray', ec='gray', linestyle='--', alpha=0.6)
-
-    # --- Styling ---
-    ax.set_aspect('equal')
-    ax.grid(True, linestyle=':', alpha=0.6)
-    ax.legend(loc='upper right')
-    ax.set_title("Snapmesh: Distance Kernel Projection")
-    ax.set_xlabel("X")
-    ax.set_ylabel("Y")
-    
-    # Auto-scale with some padding
-    all_x = np.concatenate((query_points[:,0], snapped_points[:,0]))
-    all_y = np.concatenate((query_points[:,1], snapped_points[:,1]))
-    margin = 0.5
-    ax.set_xlim(all_x.min() - margin, all_x.max() + margin)
-    ax.set_ylim(all_y.min() - margin, all_y.max() + margin)
-
-
-
-
-
-from mesh.initialization import resample_boundary # Make sure to import or update generate_initial_points
-
 if __name__ == '__main__':
-    data = input_reader('geom1.inp')
-    h0 = 0.1
+    # 1. Load Geometry
+    #    Now reads [nodes], [faces], [constraints]
+    filename = 'geom1.inp'
+    data = input_reader(filename)
     
-    print(f"Generating points with boundary resampling (h0={h0})...")
-    
-    # 1. Resample the boundary explicitly
-    bnd_points = resample_boundary(data['nodes'], data['faces'], h0)
-    print(f"Created {len(bnd_points)} boundary nodes.")
-    
-    # 2. Generate the inner cloud (using your existing function, but modified to not duplicate boundary)
-    #    Actually, let's just use the updated generate_initial_points if you pasted the code above.
-    #    OR, here is how to do it manually in main.py to test:
-    
-    cloud = generate_initial_points(data['nodes'], data['faces'], h0) 
-    # Note: If you updated generate_initial_points as above, 'cloud' now contains EVERYTHING.
-    
-    # 3. Triangulate
-    #    We pass an empty list for 'fixed_nodes' because 'cloud' now has them all!
-    #    We rely on the cloud containing the boundary.
-    empty_fixed = np.array([], dtype=data['nodes'].dtype)
-    
-    points, cells = triangulate_and_filter(data['nodes'], cloud, data['faces'])
-    
-    # ... Run smoothing ...
-    smooth_points = smooth_mesh(points.copy(), cells, data['nodes'], data['faces'], h0, niters=50)
+    # Target Edge Length
+    h0 = 0.4
+    print(f"--- Processing {filename} with h0={h0} ---")
 
-    # ... Plotting code ...
+    # 2. Build the Node Layers
+    
+    # Layer 1: Fixed Corners (The raw nodes from the file)
+    # These are immutable. They define the topology anchors.
+    fixed_points = np.column_stack((data['nodes']['x'], data['nodes']['y']))
+    
+    # Layer 2: Sliding Boundary Nodes
+    # These are generated *between* the fixed nodes. 
+    # They are allowed to move, but constrained to the geometry.
+    sliding_points = resample_boundary_points(data['nodes'], data['faces'], h0)
+    
+    # Layer 3: Inner Cloud
+    # These fill the void and move freely in 2D space.
+    cloud_points = generate_inner_points(data['nodes'], data['faces'], h0)
+    
+    # 3. Stack the System
+    #    Order matters! [Fixed] -> [Sliding] -> [Cloud]
+    points = np.vstack((fixed_points, sliding_points, cloud_points))
+    
+    n_fixed   = len(fixed_points)
+    n_sliding = len(sliding_points)
+    n_inner   = len(cloud_points)
+    total_n   = len(points)
+    
+    print("Nodes Breakdown:")
+    print(f"  - Fixed (Corners): {n_fixed}")
+    print(f"  - Sliding (Wall):  {n_sliding}")
+    print(f"  - Inner (Cloud):   {n_inner}")
+    print(f"  - Total:           {total_n}")
+    
+    # 4. Triangulate (Connectivity)
+    #    We use Delaunay on the full set to establish neighbor links.
+    print("Triangulating...")
+    tri = Delaunay(points)
+    simplices = tri.simplices
+    
+    # Filter bad triangles (Concave/Holes)
+    centroids = np.mean(points[simplices], axis=1)
+    mask = check_points_inside(centroids, data['nodes'], data['faces'])
+    cells = simplices[mask]
+    
+    print(f"Generated {len(cells)} valid triangular cells.")
 
-    # 5. Visualize Both
-    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(16,8))
+    # 5. Smooth (The Solver)
+    print("Smoothing mesh (relaxing forces)...")
     
-    # Plot Initial
-    ax1.triplot(points[:,0], points[:,1], cells, 'k-', alpha=0.3)
-    ax1.set_title("Initial")
-    
-    # Plot Smoothed
-    # Note: We should re-triangulate after moving points for perfect results, 
-    # but for small movements, the topology is fine.
-    ax2.triplot(smooth_points[:,0], smooth_points[:,1], cells, 'k-', alpha=0.5)
-    ax2.scatter(smooth_points[:,0], smooth_points[:,1], s=5, c='blue')
-    ax2.set_title("Smoothed (Relaxed)")
+    # We pass the constraint data so the snapper knows what to do.
+    # We also pass 'n_sliding' so it knows WHICH nodes to snap.
+    smoothed_points = smooth_mesh(
+        points.copy(), 
+        cells, 
+        data['nodes'], 
+        data['faces'], 
+        n_sliding,  # <--- Vital: Tells solver points [n_fixed : n_fixed+n_sliding] are constrained
+        h0, 
+        niters=50
+    )
 
+    # 6. Visualization
+    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(16, 8))
+    
+    # --- Plot 1: Initial State ---
+    ax1.set_title("Initial Placement (Before Smoothing)")
+    ax1.triplot(points[:,0], points[:,1], cells, 'k-', linewidth=0.5, alpha=0.3)
+    
+    # Color code the layers
+    ax1.scatter(fixed_points[:,0], fixed_points[:,1], c='red', s=50, label='Fixed', zorder=10)
+    ax1.scatter(sliding_points[:,0], sliding_points[:,1], c='lime', s=20, label='Sliding', zorder=9)
+    ax1.scatter(cloud_points[:,0], cloud_points[:,1], c='blue', s=10, label='Inner', zorder=8)
+    ax1.legend(loc='upper right')
+    ax1.set_aspect('equal')
 
+    # --- Plot 2: Smoothed State ---
+    ax2.set_title("Relaxed Mesh (After Smoothing)")
+    ax2.triplot(smoothed_points[:,0], smoothed_points[:,1], cells, 'k-', linewidth=0.5, alpha=0.5)
     
+    # Extract layers from the smoothed array for plotting
+    s_fixed = smoothed_points[:n_fixed]
+    s_slide = smoothed_points[n_fixed : n_fixed + n_sliding]
+    s_inner = smoothed_points[n_fixed + n_sliding :]
     
+    ax2.scatter(s_fixed[:,0], s_fixed[:,1], c='red', s=50, zorder=10)
+    ax2.scatter(s_slide[:,0], s_slide[:,1], c='lime', s=20, zorder=9)
+    ax2.scatter(s_inner[:,0], s_inner[:,1], c='blue', s=10, zorder=8)
+    ax2.set_aspect('equal')
     
-    
-    
-    
+    plt.savefig('snapmesh_final_result.png')
+    print("Result saved to 'snapmesh_final_result.png'")
