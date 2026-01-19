@@ -37,12 +37,15 @@ if __name__ == '__main__':
     initial_cells = simplices[mask]
 
     # 4. Smooth (Solver)
-    print("Smoothing mesh...")
+    print("Smoothing mesh (with dynamic topology updates)...")
+    
+    # Note: We no longer pass 'initial_cells'
     smoothed_points = smooth_mesh(
-        points.copy(), initial_cells, 
+        points.copy(), 
         data['nodes'], data['faces'], 
         n_sliding, sliding_face_indices, 
-        sizing_field, niters=80
+        sizing_field, 
+        niters=1000
     )
 
     # 5. Final Re-Triangulation
