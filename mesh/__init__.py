@@ -1,13 +1,20 @@
-''' mesh/__init__.py
-    ----------------------
-    Mesh Generation Utilities
-'''
-
 ''' mesh/__init__.py '''
+# Geometry tools
 from .geometry import compute_face_metrics
-from .distance import project_points_to_boundary
-from .initialization import generate_initial_points
-from .triangulation import triangulate_and_filter # <--- NEW
 
+# Initialization tools
+from .initialization import (
+    resample_boundary_points, 
+    generate_inner_points
+)
 
-__version__ = "0.1.0"
+# Solver tools
+from .distance import (
+    project_points_to_boundary,
+    project_points_to_specific_faces
+)
+from .smoothing import smooth_mesh
+from .containment import check_points_inside
+from .sizing import SizingField
+
+__version__ = "0.2.0"

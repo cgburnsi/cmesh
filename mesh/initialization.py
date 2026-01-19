@@ -2,135 +2,82 @@
 import numpy as np
 from .containment import check_points_inside
 
-
-
-def resample_boundary_points(nodes, faces, h0):
+def resample_boundary_points(nodes, faces, sizing_field):
     """
-    Returns points strictly *between* the endpoints of the faces.
-    These are the 'Sliding' nodes.
+    Distributes points along edges based on the 'segments' count in faces,
+    weighted by the sizing_field density.
     """
     sliding_points = []
+    sliding_face_ids = []
     
-    for face in faces:
+    for i, face in enumerate(faces):
         idx1 = face['n1'] - 1
         idx2 = face['n2'] - 1
+        n_segments = face['segments']
+        
+        if n_segments <= 1: continue 
         
         p1 = np.array([nodes['x'][idx1], nodes['y'][idx1]])
         p2 = np.array([nodes['x'][idx2], nodes['y'][idx2]])
         
-        dist = np.linalg.norm(p2 - p1)
+        # 1. Integrate the Sizing Field along the line
+        n_samples = 100
+        t_samples = np.linspace(0, 1, n_samples)
+        sample_pts = p1 + (p2 - p1) * t_samples[:, np.newaxis]
         
-        # Calculate how many segments fit
-        n_segments = int(np.ceil(dist / h0))
+        h_vals = sizing_field(sample_pts)
+        density = 1.0 / np.maximum(h_vals, 1e-6)
         
-        # Generate points, but EXCLUDE start(0) and end(1)
-        # because those are the Fixed Corners.
-        if n_segments > 1:
-            # [1:-1] slices off the first (0.0) and last (1.0) points
-            t_vals = np.linspace(0, 1, n_segments + 1)[1:-1]
-            for t in t_vals:
-                point = p1 + t * (p2 - p1)
-                sliding_points.append(point)
+        cumulative = np.cumsum(density)
+        cumulative -= cumulative[0]
+        if cumulative[-1] > 0:
+            cumulative /= cumulative[-1]
+        else:
+            cumulative = t_samples 
+        
+        # 2. Pick target 't' values
+        target_cdf = np.linspace(0, 1, n_segments + 1)[1:-1]
+        t_final = np.interp(target_cdf, cumulative, t_samples)
+        
+        for t in t_final:
+            pt = p1 + t * (p2 - p1)
+            sliding_points.append(pt)
+            sliding_face_ids.append(i)
             
     if len(sliding_points) > 0:
-        return np.array(sliding_points)
+        return np.array(sliding_points), np.array(sliding_face_ids)
     else:
-        # Return empty array if no points fit (coarse mesh)
+        return np.empty((0, 2)), np.array([], dtype=int)
+
+def generate_inner_points(nodes, faces, sizing_func):
+    """
+    Generates internal points using Rejection Sampling.
+    """
+    min_x, max_x = np.min(nodes['x']), np.max(nodes['x'])
+    min_y, max_y = np.min(nodes['y']), np.max(nodes['y'])
+    
+    # Check for empty nodes to avoid the ValueError
+    if min_x == max_x and min_y == max_y:
         return np.empty((0, 2))
 
-def generate_inner_points(nodes, faces, h0):
-    """
-    Generates ONLY the internal point cloud (excluding boundary).
-    """
-    # 1. Bounding Box
-    min_x = np.min(nodes['x'])
-    max_x = np.max(nodes['x'])
-    min_y = np.min(nodes['y'])
-    max_y = np.max(nodes['y'])
+    # Determine h_min
+    test_pts = np.random.rand(100, 2) * [max_x-min_x, max_y-min_y] + [min_x, min_y]
+    h_vals = sizing_func(test_pts)
+    h_min = np.min(h_vals)
     
-    # 2. Hexagonal Grid
-    x_range = np.arange(min_x, max_x, h0)
-    y_range = np.arange(min_y, max_y, h0 * np.sqrt(3)/2) 
-    xx, yy = np.meshgrid(x_range, y_range)
-    xx[1::2] += h0 / 2.0
+    # Estimate count
+    area = (max_x - min_x) * (max_y - min_y)
+    n_estimated = int(area / (h_min**2 * np.sqrt(3)/2) * 2.0)
     
-    points = np.column_stack((xx.flatten(), yy.flatten()))
+    candidates = np.random.rand(n_estimated, 2)
+    candidates[:,0] = candidates[:,0] * (max_x - min_x) + min_x
+    candidates[:,1] = candidates[:,1] * (max_y - min_y) + min_y
     
-    # 3. Filter: Keep only points INSIDE
+    h_local = sizing_func(candidates)
+    probs = (h_min / h_local)**2
+    
+    dice = np.random.rand(len(candidates))
+    points = candidates[dice < probs]
+    
     mask = check_points_inside(points, nodes, faces)
     return points[mask]
-
-def resample_boundary(nodes, faces, h0):
-    """
-    Walks along every face and places new nodes at spacing h0.
-    """
-    boundary_points = []
-    
-    # Loop over every face (edge)
-    for face in faces:
-        # Get coordinates of start (P1) and end (P2)
-        idx1 = face['n1'] - 1
-        idx2 = face['n2'] - 1
-        
-        p1 = np.array([nodes['x'][idx1], nodes['y'][idx1]])
-        p2 = np.array([nodes['x'][idx2], nodes['y'][idx2]])
-        
-        # Calculate length
-        dist = np.linalg.norm(p2 - p1)
-        
-        # Calculate how many segments fit
-        n_segments = int(np.ceil(dist / h0))
-        
-        # Generate points along the line
-        # linspace(0, 1, N+1) gives us points including endpoints
-        t_vals = np.linspace(0, 1, n_segments + 1)
-        
-        for t in t_vals:
-            point = p1 + t * (p2 - p1)
-            boundary_points.append(point)
-            
-    # Remove duplicates (because corners will be generated twice)
-    boundary_points = np.array(boundary_points)
-    unique_boundary = np.unique(boundary_points, axis=0)
-    
-    return unique_boundary
-
-def generate_initial_points(nodes, faces, h0):
-    """
-    Updated to include boundary resampling.
-    """
-    # ... (Keep your existing Bounding Box & Meshgrid code) ...
-    min_x = np.min(nodes['x'])
-    max_x = np.max(nodes['x'])
-    min_y = np.min(nodes['y'])
-    max_y = np.max(nodes['y'])
-    
-    x_range = np.arange(min_x, max_x, h0)
-    y_range = np.arange(min_y, max_y, h0 * np.sqrt(3)/2) 
-    xx, yy = np.meshgrid(x_range, y_range)
-    xx[1::2] += h0 / 2.0
-    
-    points = np.column_stack((xx.flatten(), yy.flatten()))
-    
-    # Filter INSIDE
-    mask = check_points_inside(points, nodes, faces)
-    inner_points = points[mask]
-    
-    # --- NEW STEP: Resample Boundary ---
-    bnd_points = resample_boundary(nodes, faces, h0)
-    
-    # Combine: [Boundary Points] + [Inner Points]
-    # We stack them so the boundary is definitely included
-    all_points = np.vstack((bnd_points, inner_points))
-    
-    return all_points
-
-
-
-
-
-
-if __name__ == '__main__':
-    pass
-
-

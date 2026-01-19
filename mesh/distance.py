@@ -1,44 +1,36 @@
 ''' mesh/distance.py '''
 import numpy as np
 
-def get_closest_point_on_segment(px, py, x1, y1, x2, y2):
+def project_points_to_specific_faces(points, face_indices, nodes, faces):
     """
-    Core Kernel: Finds the closest point on a line segment (x1,y1)->(x2,y2) 
-    for a query point (px,py).
-    
-    This function supports NumPy broadcasting:
-    px, py: shape (N, 1)  (Query Points)
-    x1, y1: shape (1, M)  (Segment Start)
-    x2, y2: shape (1, M)  (Segment End)
-    
-    Returns:
-        cx, cy: shape (N, M) - The closest point on EACH segment for EACH point.
+    Projects points[i] strictly to faces[face_indices[i]].
     """
-    # 1. Vector from Segment Start to Point (P - A)
-    dpx = px - x1
-    dpy = py - y1
+    relevant_faces = faces[face_indices]
+    idx_n1 = relevant_faces['n1'] - 1
+    idx_n2 = relevant_faces['n2'] - 1
     
-    # 2. Segment Vector (B - A)
-    sx = x2 - x1
-    sy = y2 - y1
+    x1, y1 = nodes['x'][idx_n1], nodes['y'][idx_n1]
+    x2, y2 = nodes['x'][idx_n2], nodes['y'][idx_n2]
     
-    # 3. Project P onto the line (dot product)
-    #    t = (P-A) . (B-A) / |B-A|^2
-    seg_len_sq = sx**2 + sy**2
+    px, py = points[:, 0], points[:, 1]
     
-    # Avoid division by zero
-    seg_len_sq = np.where(seg_len_sq == 0, 1.0, seg_len_sq)
+    # Vector P1 -> P
+    dx, dy = px - x1, py - y1
+    # Vector P1 -> P2 (Wall)
+    vx, vy = x2 - x1, y2 - y1
     
-    t = (dpx * sx + dpy * sy) / seg_len_sq
+    v_sq = vx**2 + vy**2
+    v_dot_d = vx*dx + vy*dy
     
-    # 4. Clamp 't' to segment [0, 1] to handle endpoints
-    t = np.clip(t, 0.0, 1.0)
+    t = v_dot_d / np.maximum(v_sq, 1e-12)
+    t = np.clip(t, 0.0, 1.0) # HARD STOP at corners
     
-    # 5. Calculate closest point
-    cx = x1 + t * sx
-    cy = y1 + t * sy
+    nearest_x = x1 + t * vx
+    nearest_y = y1 + t * vy
     
-    return cx, cy
+    return np.column_stack((nearest_x, nearest_y))
+
+
 
 def project_points_to_boundary(points, nodes, faces):
     """

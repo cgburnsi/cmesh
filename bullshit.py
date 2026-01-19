@@ -1,27 +1,46 @@
-# Run this once to fix the file on disk
-clean_geometry = """[nodes]
-1   0.0   0.0
-2   0.0   2.0
-3   1.0   2.0
-4   2.0   1.0
-5   3.0   2.0
-6   3.0   0.0
+import os
+import sys
+from core.input_reader import Lexer, Parser, TokenType
 
-[constraints]
-1      line     0.0     0.0     0.0
+filename = 'geom1.inp'
 
-[faces]
-1   1   2   1
-2   2   3   1
-3   3   4   1
-4   4   5   1
-5   5   6   1
-6   6   1   1
+print(f"--- DIAGNOSTIC: Checking {filename} ---")
 
-[cells]
-"""
+# 1. Check File Existence and Content
+if not os.path.exists(filename):
+    print(f"ERROR: {filename} does not exist in {os.getcwd()}")
+    sys.exit(1)
 
-with open('geom1.inp', 'w') as f:
-    f.write(clean_geometry)
+with open(filename, 'r') as f:
+    content = f.read()
 
-print("geom1.inp has been overwritten with clean data.")
+print(f"File size: {len(content)} bytes")
+print(f"First 50 chars: {repr(content[:50])}")
+
+if len(content.strip()) == 0:
+    print("ERROR: File is empty or whitespace only.")
+    sys.exit(1)
+
+# 2. Check Lexer Output (First 10 Tokens)
+print("\n--- DIAGNOSTIC: Lexer Output ---")
+lexer = Lexer(content)
+for i in range(10):
+    token = lexer.getToken()
+    print(f"Token {i}: {token.kind} ('{token.text}')")
+    if token.kind == TokenType.EOF:
+        break
+
+# 3. Check Parser Output
+print("\n--- DIAGNOSTIC: Parser Output ---")
+# Reset lexer for parser
+lexer = Lexer(content)
+parser = Parser(lexer)
+
+try:
+    parser.program()
+    print(f"Nodes Found: {len(parser.nodes)}")
+    print(f"Faces Found: {len(parser.faces)}")
+    print(f"Constraints Found: {len(parser.constraints)}")
+    print(f"Sources Found: {len(parser.sources)}")
+except Exception as e:
+    print(f"PARSER CRASHED: {e}")
