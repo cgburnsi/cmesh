@@ -2,7 +2,7 @@
 import sys
 import numpy as np
 from enum import Enum, auto
-from .data_types import NODE_DTYPE, FACE_DTYPE, CELL_DTYPE, CONSTRAINT_DTYPE, SOURCE_DTYPE
+from .data_types import NODE_DTYPE, FACE_DTYPE, CELL_DTYPE, CONSTRAINT_DTYPE, FIELD_DTYPE
 
 class TokenType(Enum):
     EOF = auto(); NUMBER = auto(); IDENTIFIER = auto()
@@ -57,9 +57,9 @@ class Parser:
         self.curToken = None; self.peekToken = None
         self.nextToken(); self.nextToken()
         
-        self.nodes = []; self.faces = []; self.cells = []; self.constraints = []; self.sources = []
+        self.nodes = []; self.faces = []; self.cells = []; self.constraints = []; self.fields = []
         self.constraint_types = {'fixed':0, 'line':1, 'circle':2}
-        self.source_types = {'global':0, 'box':1}
+        self.field_types = {'global':0, 'box':1}
 
     def checkToken(self, kind): return self.kind == kind
     def nextToken(self):
@@ -102,18 +102,18 @@ class Parser:
                 p3 = float(self.curToken.text); self.match(TokenType.NUMBER)
                 self.constraints.append((cid, ctype, 0, p1, p2, p3))
 
-            elif name == "sources":
+            elif name == "fields":
                 sid = int(self.curToken.text); self.match(TokenType.NUMBER)
                 stype = 0
                 if self.checkToken(TokenType.IDENTIFIER):
-                    stype = self.source_types.get(self.curToken.text.lower(), 0)
+                    stype = self.field_types.get(self.curToken.text.lower(), 0)
                     self.match(TokenType.IDENTIFIER)
                 x1 = float(self.curToken.text); self.match(TokenType.NUMBER)
                 y1 = float(self.curToken.text); self.match(TokenType.NUMBER)
                 x2 = float(self.curToken.text); self.match(TokenType.NUMBER)
                 y2 = float(self.curToken.text); self.match(TokenType.NUMBER)
                 h  = float(self.curToken.text); self.match(TokenType.NUMBER)
-                self.sources.append((sid, stype, x1, y1, x2, y2, h))
+                self.fields.append((sid, stype, x1, y1, x2, y2, h))
 
             elif name == "faces":
                 fid = int(self.curToken.text); self.match(TokenType.NUMBER)
@@ -134,7 +134,7 @@ class Parser:
             "nodes": np.array(self.nodes, dtype=NODE_DTYPE),
             "faces": np.array(self.faces, dtype=FACE_DTYPE),
             "constraints": np.array(self.constraints, dtype=CONSTRAINT_DTYPE),
-            "sources": np.array(self.sources, dtype=SOURCE_DTYPE)
+            "fields": np.array(self.fields, dtype=FIELD_DTYPE)
         }
 
 def input_reader(filename):

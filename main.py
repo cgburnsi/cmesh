@@ -13,7 +13,7 @@ if __name__ == '__main__':
     data = input_reader(filename)
     
     # 1. Initialize Sizing Field
-    sizing_field = SizingField(data['sources'])
+    sizing_field = SizingField(data['fields'])
     print(f"--- Sizing Field Initialized (Background h={sizing_field.h_background}) ---")
 
     # 2. Build Layers (Now using Locked Boundaries)
