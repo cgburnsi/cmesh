@@ -1,56 +1,10 @@
-''' core/input_reader.py '''
-import sys
+''' core/parser.py
+    --------------------
+    Read an input file
+'''
 import numpy as np
-from enum import Enum, auto
 from .data_types import NODE_DTYPE, FACE_DTYPE, CELL_DTYPE, CONSTRAINT_DTYPE, FIELD_DTYPE
-
-class TokenType(Enum):
-    EOF = auto(); NUMBER = auto(); IDENTIFIER = auto()
-    LBRACKET = auto(); RBRACKET = auto()
-
-class Token:
-    def __init__(self, text, kind): self.text = text; self.kind = kind
-
-class Lexer:
-    # (Lexer remains unchanged - it works perfectly)
-    def __init__(self, input_text):
-        self.source = input_text + '\n'
-        self.curPos = -1
-        self.curChar = ''
-        self.nextChar()
-    
-    def nextChar(self):
-        self.curPos += 1
-        if self.curPos >= len(self.source): self.curChar = '\0'
-        else: self.curChar = self.source[self.curPos]
-
-    def peek(self):
-        if self.curPos + 1 >= len(self.source): return '\0'
-        return self.source[self.curPos + 1]
-
-    def abort(self, msg): sys.exit("Lexing error: " + msg)
-    def skipWhitespace(self):
-        while self.curChar in [' ', '\t', '\n', '\r']: self.nextChar()
-    def skipComment(self):
-        if self.curChar == '#':
-            while self.curChar != '\n' and self.curChar != '\0': self.nextChar()
-
-    def getToken(self):
-        self.skipWhitespace()
-        while self.curChar == '#': self.skipComment(); self.skipWhitespace()
-
-        if self.curChar == '\0': return Token('', TokenType.EOF)
-        elif self.curChar == '[': self.nextChar(); return Token('[', TokenType.LBRACKET)
-        elif self.curChar == ']': self.nextChar(); return Token(']', TokenType.RBRACKET)
-        elif self.curChar.isdigit() or self.curChar == '.' or self.curChar == '-':
-            start = self.curPos
-            while self.peek().isdigit() or self.peek() == '.' or self.peek() == '-': self.nextChar()
-            text = self.source[start : self.curPos+1]; self.nextChar(); return Token(text, TokenType.NUMBER)
-        elif self.curChar.isalpha():
-            start = self.curPos
-            while self.peek().isalnum() or self.peek() == '_': self.nextChar()
-            text = self.source[start : self.curPos+1]; self.nextChar(); return Token(text, TokenType.IDENTIFIER)
-        else: self.abort(f"Unknown token: {self.curChar}")
+from .lexer import Lexer, TokenType # <--- Import your tool
 
 class Parser:
     def __init__(self, lexer):

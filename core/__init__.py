@@ -13,7 +13,7 @@
        - CONSTRAINT_DTYPE: Geometry definitions.
        - FIELD_DTYPE: Sizing and Physics field definitions.
        
-    2. Input/Output (via .input_reader):
+    2. Input/Output (via .parser):
        - input_reader: The main function to parse .inp files into NumPy arrays.
     
     Usage:
@@ -40,7 +40,7 @@ from .data_types import (
 # -----------------------------------------------------------------------------
 # 2. Expose Input Tools
 # -----------------------------------------------------------------------------
-from .input_reader import input_reader
+from .parser import input_reader
 
 # -----------------------------------------------------------------------------
 # 3. Package Metadata
