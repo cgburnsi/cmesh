@@ -12,6 +12,7 @@ class Token:
     def __init__(self, text, kind): self.text = text; self.kind = kind
 
 class Lexer:
+    # (Lexer remains unchanged - it works perfectly)
     def __init__(self, input_text):
         self.source = input_text + '\n'
         self.curPos = -1
@@ -57,10 +58,28 @@ class Parser:
         self.curToken = None; self.peekToken = None
         self.nextToken(); self.nextToken()
         
-        self.nodes = []; self.faces = []; self.cells = []; self.constraints = []; self.fields = []
+        # 1. Data Storage
+        self.data = {
+            "nodes": [], 
+            "faces": [], 
+            "constraints": [], 
+            "fields": []
+        }
+        
+        # 2. Lookup Tables (Enums for Input File Strings)
         self.constraint_types = {'fixed':0, 'line':1, 'circle':2}
         self.field_types = {'global':0, 'box':1}
 
+        # 3. Dispatch Table: Maps Section Name -> Handler Method
+        self.section_handlers = {
+            "nodes": self.parse_nodes,
+            "faces": self.parse_faces,
+            "constraints": self.parse_constraints,
+            "fields": self.parse_fields,
+            "cells": self.skip_section # Placeholder for future
+        }
+
+    # --- Core Parsing Helpers ---
     def checkToken(self, kind): return self.kind == kind
     def nextToken(self):
         self.curToken = self.peekToken; self.peekToken = self.lexer.getToken()
@@ -72,80 +91,92 @@ class Parser:
         self.nextToken()
     def abort(self, msg): sys.exit(msg)
 
-    def program(self):
-        while not self.checkToken(TokenType.EOF): self.section()
+    # --- Value Extraction Helpers (Cleans up the code significantly) ---
+    def expect_int(self):
+        val = int(self.curToken.text); self.match(TokenType.NUMBER)
+        return val
+    def expect_float(self):
+        val = float(self.curToken.text); self.match(TokenType.NUMBER)
+        return val
+    def expect_enum(self, mapping_dict, default_val):
+        val = default_val
+        if self.checkToken(TokenType.IDENTIFIER):
+            text = self.curToken.text.lower()
+            val = mapping_dict.get(text, default_val)
+            self.match(TokenType.IDENTIFIER)
+        elif self.checkToken(TokenType.NUMBER):
+            val = int(self.curToken.text); self.match(TokenType.NUMBER)
+        return val
 
-    def section(self):
+    # --- Main Loop ---
+    def program(self):
+        while not self.checkToken(TokenType.EOF): 
+            self.process_section()
+
+    def process_section(self):
         self.match(TokenType.LBRACKET)
-        name = self.curToken.text.lower()
+        section_name = self.curToken.text.lower()
         self.match(TokenType.IDENTIFIER)
         self.match(TokenType.RBRACKET)
 
+        # Dispatcher Logic
+        handler = self.section_handlers.get(section_name)
+        if not handler:
+            self.abort(f"Unknown section: [{section_name}]")
+        
+        # Run the specific handler until we run out of numbers
         while self.checkToken(TokenType.NUMBER):
-            if name == "nodes":
-                nid = int(self.curToken.text); self.match(TokenType.NUMBER)
-                x = float(self.curToken.text); self.match(TokenType.NUMBER)
-                y = float(self.curToken.text); self.match(TokenType.NUMBER)
-                self.nodes.append((nid, x, y))
+            handler()
 
-            elif name == "constraints":
-                cid = int(self.curToken.text); self.match(TokenType.NUMBER)
-                ctype = 1
-                if self.checkToken(TokenType.IDENTIFIER):
-                    ctype = self.constraint_types.get(self.curToken.text.lower(), 1)
-                    self.match(TokenType.IDENTIFIER)
-                elif self.checkToken(TokenType.NUMBER):
-                    ctype = int(self.curToken.text)
-                    self.match(TokenType.NUMBER)
-                p1 = float(self.curToken.text); self.match(TokenType.NUMBER)
-                p2 = float(self.curToken.text); self.match(TokenType.NUMBER)
-                p3 = float(self.curToken.text); self.match(TokenType.NUMBER)
-                self.constraints.append((cid, ctype, 0, p1, p2, p3))
+    # --- Individual Handlers ---
+    def parse_nodes(self):
+        nid = self.expect_int()
+        x   = self.expect_float()
+        y   = self.expect_float()
+        self.data['nodes'].append((nid, x, y))
 
-            elif name == "fields":
-                sid = int(self.curToken.text); self.match(TokenType.NUMBER)
-                stype = 0
-                if self.checkToken(TokenType.IDENTIFIER):
-                    stype = self.field_types.get(self.curToken.text.lower(), 0)
-                    self.match(TokenType.IDENTIFIER)
-                x1 = float(self.curToken.text); self.match(TokenType.NUMBER)
-                y1 = float(self.curToken.text); self.match(TokenType.NUMBER)
-                x2 = float(self.curToken.text); self.match(TokenType.NUMBER)
-                y2 = float(self.curToken.text); self.match(TokenType.NUMBER)
-                h  = float(self.curToken.text); self.match(TokenType.NUMBER)
-                self.fields.append((sid, stype, x1, y1, x2, y2, h))
+    def parse_faces(self):
+        fid  = self.expect_int()
+        n1   = self.expect_int()
+        n2   = self.expect_int()
+        tag  = self.expect_int()
+        segs = self.expect_int() # Segments is now mandatory in logic
+        self.data['faces'].append((fid, n1, n2, tag, segs))
 
-            elif name == "faces":
-                fid = int(self.curToken.text); self.match(TokenType.NUMBER)
-                n1 = int(self.curToken.text); self.match(TokenType.NUMBER)
-                n2 = int(self.curToken.text); self.match(TokenType.NUMBER)
-                tag = int(self.curToken.text); self.match(TokenType.NUMBER)
-                # Parse Segments (Optional, defaults to 10 if missing, but strictly enforced by parser logic)
-                # To be safe with your format, we assume it's always there if we agreed on the format.
-                segs = int(self.curToken.text); self.match(TokenType.NUMBER)
-                self.faces.append((fid, n1, n2, tag, segs))
+    def parse_constraints(self):
+        cid   = self.expect_int()
+        ctype = self.expect_enum(self.constraint_types, 1) # Default to line (1)
+        p1    = self.expect_float()
+        p2    = self.expect_float()
+        p3    = self.expect_float()
+        # Note: 'target' is currently hardcoded 0, can be updated later
+        self.data['constraints'].append((cid, ctype, 0, p1, p2, p3))
 
-            elif name == "cells":
-                self.nextToken() # Skip
-            else: self.abort(f"Unknown section: {name}")
+    def parse_fields(self):
+        sid   = self.expect_int()
+        stype = self.expect_enum(self.field_types, 0) # Default to global (0)
+        x1    = self.expect_float()
+        y1    = self.expect_float()
+        x2    = self.expect_float()
+        y2    = self.expect_float()
+        v     = self.expect_float()
+        self.data['fields'].append((sid, stype, x1, y1, x2, y2, v))
+
+    def skip_section(self):
+        # Just consume the tokens for a line if needed, or implement generic skipper
+        # For now, we just consume the first token to avoid infinite loops if buggy
+        self.nextToken() 
 
     def get_arrays(self):
         return {
-            "nodes": np.array(self.nodes, dtype=NODE_DTYPE),
-            "faces": np.array(self.faces, dtype=FACE_DTYPE),
-            "constraints": np.array(self.constraints, dtype=CONSTRAINT_DTYPE),
-            "fields": np.array(self.fields, dtype=FIELD_DTYPE)
+            "nodes":       np.array(self.data['nodes'], dtype=NODE_DTYPE),
+            "faces":       np.array(self.data['faces'], dtype=FACE_DTYPE),
+            "constraints": np.array(self.data['constraints'], dtype=CONSTRAINT_DTYPE),
+            "fields":      np.array(self.data['fields'], dtype=FIELD_DTYPE)
         }
 
 def input_reader(filename):
     with open(filename, 'r') as f: 
         parser = Parser(Lexer(f.read()))
-        
-        # CRITICAL FIX: Run the parsing loop!
-        parser.program()  
-        
+        parser.program()
         return parser.get_arrays()
-    
-    
-    
-    
