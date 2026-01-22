@@ -32,3 +32,4 @@ if __name__ == '__main__':
     view.plot_nodes()
     view.save('snapmesh_sources.png')
     view.show()
+    

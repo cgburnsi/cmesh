@@ -11,22 +11,17 @@ def get_unique_edges(simplices):
     return np.unique(edges, axis=0)
 
 def spring_smoother(points, nodes, faces, n_sliding, sliding_face_indices, sizing_func, niters=100):
-    """ 
-    Standard linear spring-force smoother with Proximity-Aware Velocity Limiting.
-    """
+    """ Standard linear spring-force smoother with Proximity-Aware Velocity Limiting. """
     n_fixed = len(nodes)
     slide_start, slide_end = n_fixed, n_fixed + n_sliding
     dt, retriangulate_interval = 0.2, 5 
     current_simplices = None
-    
-    # Global stability cap (fraction of local h)
     MAX_STEP_COEFF = 0.2
 
     for itr in range(niters):
         if itr % retriangulate_interval == 0:
             tri = Delaunay(points)
-            centroids = np.mean(points[tri.simplices], axis=1)
-            mask = check_points_inside(centroids, nodes, faces)
+            mask = check_points_inside(np.mean(points[tri.simplices], axis=1), nodes, faces)
             current_simplices = tri.simplices[mask]
             
         edges = get_unique_edges(current_simplices)
@@ -35,64 +30,43 @@ def spring_smoother(points, nodes, faces, n_sliding, sliding_face_indices, sizin
         
         diff = p1 - p2
         dists = np.maximum(np.sqrt(np.sum(diff**2, axis=1)), 1e-10)
-        
-        # Spring Force
         F_mag = dists - sizing_func((p1 + p2) / 2.0)
-        force = (diff / dists[:, None]) * F_mag[:, None]
         
+        force = (diff / dists[:, None]) * F_mag[:, None]
         total_force = np.zeros_like(points)
         np.add.at(total_force, idx2,  0.2 * force)
         np.add.at(total_force, idx1, -0.2 * force)
         
-        # 1. Calculate Displacement
         raw_move = total_force * dt
-        
-        # 2. PROXIMITY-AWARE VELOCITY LIMITER
         h_local = sizing_func(points)
         move_mags = np.linalg.norm(raw_move, axis=1)
-        
-        # Determine distance to nearest boundary for all points
         dist_to_boundary, _ = project_points_to_boundary(points, nodes, faces)
-        
-        # Limit is the smaller of: (20% of h) OR (50% of distance to wall)
         limit = np.minimum(MAX_STEP_COEFF * h_local, 0.5 * dist_to_boundary)
         
         scale = np.where(move_mags > limit, limit / (move_mags + 1e-12), 1.0)
         points[n_fixed:] += raw_move[n_fixed:] * scale[n_fixed:][:, np.newaxis]
         
-        # 3. Apply Constraints
         if n_sliding > 0:
-            sliders = points[slide_start : slide_end]
             points[slide_start : slide_end] = project_points_to_specific_faces(
-                sliders, sliding_face_indices, nodes, faces
+                points[slide_start : slide_end], sliding_face_indices, nodes, faces
             )
             
         if itr % 2 == 0:
             inner_points = points[slide_end:]
             is_inside = check_points_inside(inner_points, nodes, faces)
             if np.any(~is_inside):
-                leakers = inner_points[~is_inside]
-                _, snapped = project_points_to_boundary(leakers, nodes, faces)
+                _, snapped = project_points_to_boundary(inner_points[~is_inside], nodes, faces)
                 points[slide_end:][~is_inside] = snapped
 
-    # Final Emergency Pass to ensure 100% containment
-    inner_points = points[slide_end:]
-    is_inside = check_points_inside(inner_points, nodes, faces)
-    if np.any(~is_inside):
-        _, snapped_final = project_points_to_boundary(inner_points[~is_inside], nodes, faces)
-        points[slide_end:][~is_inside] = snapped_final
-        
     return points
 
 def distmesh_smoother(points, nodes, faces, n_sliding, sliding_face_indices, sizing_func, niters=100):
-    """ 
-    Improved smoother with Laplacian blending and Proximity-Aware Velocity Limiting.
-    """
+    """ Improved DistMesh-style smoother with Repulsion-Only forces and Laplacian blending. """
     n_fixed = len(nodes)
     slide_start, slide_end = n_fixed, n_fixed + n_sliding
     dt, retriangulate_interval = 0.2, 5
     current_simplices = None
-    MAX_STEP_COEFF = 0.2 
+    MAX_STEP_COEFF = 0.1 
 
     for itr in range(niters):
         if itr % retriangulate_interval == 0:
@@ -108,13 +82,14 @@ def distmesh_smoother(points, nodes, faces, n_sliding, sliding_face_indices, siz
         dists = np.maximum(np.sqrt(np.sum(diff**2, axis=1)), 1e-10)
         L_target = sizing_func((p1 + p2) / 2.0)
 
-        # 1. Physics: Spring and Laplacian Forces
-        spring_vec = (diff / dists[:, None]) * (dists - L_target)[:, None]
+        # Repulsion-Only: F = max(L_target - dists, 0)
+        F_mag = np.maximum(L_target - dists, 0)
+        spring_vec = (diff / dists[:, None]) * F_mag[:, None]
         
         total_force = np.zeros_like(points)
         laplacian_vec = np.zeros_like(points)
-        np.add.at(total_force, idx1, -spring_vec)
-        np.add.at(total_force, idx2,  spring_vec)
+        np.add.at(total_force, idx1,  spring_vec)
+        np.add.at(total_force, idx2, -spring_vec)
         np.add.at(laplacian_vec, idx1, p2 - p1)
         np.add.at(laplacian_vec, idx2, p1 - p2)
 
@@ -122,40 +97,27 @@ def distmesh_smoother(points, nodes, faces, n_sliding, sliding_face_indices, siz
         np.add.at(valence, idx1, 1); np.add.at(valence, idx2, 1)
         valence = valence[:, np.newaxis]
 
-        # 2. Movement Calculation
-        raw_move = ((total_force * 0.8) + ((laplacian_vec / valence) * 0.2)) * dt
+        # Blend: 70% Springs, 30% Laplacian for regularity
+        raw_move = ((total_force * 0.7) + ((laplacian_vec / valence) * 0.3)) * dt
         
-        # 3. PROXIMITY-AWARE VELOCITY LIMITER
         h_local = sizing_func(points)
         move_mags = np.linalg.norm(raw_move, axis=1)
         dist_to_boundary, _ = project_points_to_boundary(points, nodes, faces)
-        
-        # Dynamic limit based on local sizing and distance to wall
         limit = np.minimum(MAX_STEP_COEFF * h_local, 0.5 * dist_to_boundary)
         
         scale = np.where(move_mags > limit, limit / (move_mags + 1e-12), 1.0)
         points[n_fixed:] += raw_move[n_fixed:] * scale[n_fixed:][:, np.newaxis]
 
-        # 4. Apply Constraints
         if n_sliding > 0:
-            sliders = points[slide_start : slide_end]
             points[slide_start : slide_end] = project_points_to_specific_faces(
-                sliders, sliding_face_indices, nodes, faces
+                points[slide_start : slide_end], sliding_face_indices, nodes, faces
             )
             
         if itr % 2 == 0:
             inner_points = points[slide_end:]
             is_inside = check_points_inside(inner_points, nodes, faces)
             if np.any(~is_inside):
-                leakers = inner_points[~is_inside]
-                _, snapped = project_points_to_boundary(leakers, nodes, faces)
+                _, snapped = project_points_to_boundary(inner_points[~is_inside], nodes, faces)
                 points[slide_end:][~is_inside] = snapped
-
-    # Final Emergency Pass
-    inner_points = points[slide_end:]
-    is_inside = check_points_inside(inner_points, nodes, faces)
-    if np.any(~is_inside):
-        _, snapped_final = project_points_to_boundary(inner_points[~is_inside], nodes, faces)
-        points[slide_end:][~is_inside] = snapped_final
 
     return points
