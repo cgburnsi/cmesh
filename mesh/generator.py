@@ -79,7 +79,7 @@ class MeshGenerator:
         h_target = self.field(midpoints)
         
         # Now both arrays have the same shape, allowing comparison
-        too_close = (edge_lens < 0.4 * h_target)
+        too_close = (edge_lens < 0.5 * h_target)
         
         if np.any(too_close):
             kill_list = edges[too_close, 1]
