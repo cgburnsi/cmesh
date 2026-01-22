@@ -1,1 +1,6 @@
-.spyder/
+.spyproject/
+
+__pycache__/
+*.pyc
+
+
