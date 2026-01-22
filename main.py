@@ -1,4 +1,5 @@
 ''' main.py '''
+import numpy as np
 from core import input_reader
 from mesh import MeshGenerator
 from viz import MeshPlotter
@@ -18,6 +19,12 @@ if __name__ == '__main__':
     print(f"Minimum Quality: {stats['min']:.4f}")
     print(f"Average Quality: {stats['avg']:.4f}")
     print(f"Sliver Count (Q < 0.2): {len(stats['worst_indices'])}")
+    
+    if stats['min'] < 0.01:
+        bad_indices = np.where(q_values < 0.01)[0]
+        print(f"Degenerate Cell Indices: {bad_indices}")
+        # The vertices of the first bad cell
+        print(f"Vertices of Cell {bad_indices[0]}: \n{smoothed_points[final_cells[bad_indices[0]]]}")
     
     # 3. Package for Plotter
     plot_data = {

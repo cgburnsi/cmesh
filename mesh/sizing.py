@@ -24,7 +24,8 @@ class SizingField:
             dy = np.maximum(0, np.maximum(ymin - points[:, 1], points[:, 1] - ymax))
             dist = np.sqrt(dx**2 + dy**2)
             
-            h_box = h_target + (0.05 * dist)
+            # Increase from 0.05 to 0.1 or 0.2 for a smoother transition zone
+            h_box = h_target + (0.15 * dist)
             h_values = np.minimum(h_values, h_box)
             
         return h_values
