@@ -55,3 +55,32 @@ def compute_face_metrics(nodes, faces):
         'tangents':  np.column_stack((tx, ty)),
         'normals':   np.column_stack((nx, ny))
     }
+
+
+def compute_triangle_quality(points, simplices):
+    """
+    Computes the Radius-Edge Ratio (Q) for a set of triangles.
+    Q = 1.0 for equilateral, Q -> 0.0 for slivers.
+    """
+    # 1. Get coordinates for each vertex (A, B, C) of every triangle
+    pts = points[simplices] # Shape: (N_tris, 3, 2)
+    A, B, C = pts[:, 0], pts[:, 1], pts[:, 2]
+
+    # 2. Compute side lengths
+    a = np.linalg.norm(B - C, axis=1)
+    b = np.linalg.norm(A - C, axis=1)
+    c = np.linalg.norm(A - B, axis=1)
+
+    # 3. Compute Area (using cross product magnitude)
+    # Area = 0.5 * |(x1(y2-y3) + x2(y3-y1) + x3(y1-y2))|
+    area = 0.5 * np.abs(A[:,0]*(B[:,1]-C[:,1]) + B[:,0]*(C[:,1]-A[:,1]) + C[:,0]*(A[:,1]-B[:,1]))
+    
+    # 4. Compute Radius-Edge Ratio (Q)
+    # r_in = Area / semi-perimeter; r_out = (abc) / (4 * Area)
+    # Q = 2 * r_in / r_out simplified:
+    s = (a + b + c) / 2.0
+    # Avoid division by zero for degenerate triangles
+    denom = s * a * b * c
+    q_values = np.where(denom > 0, (8.0 * area**2) / denom, 0.0)
+    
+    return q_values

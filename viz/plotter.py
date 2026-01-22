@@ -3,16 +3,17 @@ import matplotlib.pyplot as plt
 import numpy as np
 
 class MeshPlotter:
-    """
-    Visualization tool for Mazumder-style mesh arrays.
-    Decoupled from the generator: only needs raw arrays to work.
-    """
-    def __init__(self, arrays):
-        self.xv = arrays['xv']
-        self.yv = arrays['yv']
-        self.lcv = arrays['lcv']
+    def __init__(self, points=None, cells=None, arrays=None):
+        # Support both the old dictionary style and direct array passing
+        if arrays is not None:
+            self.xv = arrays['xv']
+            self.yv = arrays['yv']
+            self.lcv = arrays['lcv']
+        else:
+            self.xv = points[:, 0]
+            self.yv = points[:, 1]
+            self.lcv = cells
         
-        # Setup Figure
         self.fig, self.ax = plt.subplots(figsize=(10, 8))
         self.ax.set_aspect('equal')
         self.ax.set_title("Generated Mesh")
