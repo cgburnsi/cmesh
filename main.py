@@ -3,7 +3,9 @@ import numpy as np
 from core import input_reader
 from mesh import MeshGenerator
 from viz import MeshPlotter
-from mesh.smoothing import spring_smoother, distmesh_smoother  # Import the one you want to test
+from mesh.smoothing import spring_smoother, distmesh_smoother  
+from mesh.connectivity import build_fvm_connectivity
+
 
 if __name__ == '__main__':
     # 1. Load Data
@@ -13,6 +15,22 @@ if __name__ == '__main__':
     mesh = MeshGenerator(data, smoother=distmesh_smoother)
     #mesh = MeshGenerator(data, smoother=spring_smoother)
     smoothed_points, final_cells = mesh.generate(niters=1000)    
+    
+    
+    # NEW: Build Connectivity
+    face_nodes, face_cells, cell_faces = build_fvm_connectivity(final_cells)
+    
+    n_internal = np.sum(face_cells[:, 1] != -1)
+    n_boundary = np.sum(face_cells[:, 1] == -1)
+    
+    print(f"--- CONNECTIVITY REPORT ---")
+    print(f"Total Cells: {len(final_cells)}")
+    print(f"Total Faces: {len(face_nodes)}")
+    print(f"  - Internal Faces: {n_internal}")
+    print(f"  - Boundary Faces: {n_boundary}")
+    
+    
+    
     
     q_values, stats = mesh.get_quality(smoothed_points, final_cells)
     print(f"--- MESH QUALITY REPORT ---")

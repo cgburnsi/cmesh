@@ -18,5 +18,7 @@ from .containment import check_points_inside
 from .sizing import SizingField
 
 from .generator import MeshGenerator # Add this line
+from .connectivity import build_fvm_connectivity
+
 
 __version__ = "0.2.0"
