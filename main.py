@@ -15,7 +15,7 @@ if __name__ == '__main__':
     # 2. Generate Mesh
     mesh = MeshGenerator(data, smoother=distmesh_smoother)
     #mesh = MeshGenerator(data, smoother=spring_smoother)
-    smoothed_points, final_cells = mesh.generate(niters=1000)    
+    smoothed_points, final_cells = mesh.generate(niters=100)    
     
 
     
