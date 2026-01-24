@@ -36,3 +36,56 @@ def compute_triangle_quality(points, simplices):
     s = (a + b + c) / 2.0
     denom = s * a * b * c
     return np.where(denom > 0, (8.0 * area**2) / denom, 0.0)
+
+
+''' mesh/geometry.py '''
+import numpy as np
+
+def compute_cell_metrics(points, cells):
+    """ 
+    Calculates Area and Centroid for every triangular cell as NumPy arrays.
+    Returns: (area_array, centroid_array)
+    """
+    pts = points[cells] # Shape: (N_cells, 3, 2)
+    A, B, C = pts[:, 0], pts[:, 1], pts[:, 2]
+
+    # Area (N_cells,)
+    area = 0.5 * np.abs(A[:,0]*(B[:,1]-C[:,1]) + B[:,0]*(C[:,1]-A[:,1]) + C[:,0]*(A[:,1]-B[:,1]))
+    
+    # Centroid (N_cells, 2)
+    centroid = (A + B + C) / 3.0
+    
+    return area, centroid
+
+def compute_fvm_face_metrics(points, face_nodes, face_cells, cell_centroids):
+    """ 
+    Calculates Lengths and Oriented Normals for FVM faces.
+    Returns: (lengths, oriented_normals, midpoints) all as NumPy arrays.
+    """
+    p1 = points[face_nodes[:, 0]]
+    p2 = points[face_nodes[:, 1]]
+    
+    # 1. Edge Vectors and Lengths
+    dx = p2[:, 0] - p1[:, 0]
+    dy = p2[:, 1] - p1[:, 1]
+    lengths = np.sqrt(dx**2 + dy**2)
+    midpoints = 0.5 * (p1 + p2)
+    
+    # 2. Candidate Normal (dy, -dx)
+    nx = dy
+    ny = -dx
+    
+    # 3. Orientation Logic (Vectorized)
+    # The normal MUST point from face_cells[:, 0] (Owner) to face_cells[:, 1] (Neighbor)
+    owner_centroids = cell_centroids[face_cells[:, 0]]
+    vec_owner_to_face = midpoints - owner_centroids
+    
+    # Dot product to check if the candidate normal is pointing the right way
+    dot = vec_owner_to_face[:, 0] * nx + vec_owner_to_face[:, 1] * ny
+    flip = np.where(dot < 0, -1.0, 1.0)
+    
+    # Apply flip and normalize to create unit normals
+    nx_final = (nx * flip) / (lengths + 1e-12)
+    ny_final = (ny * flip) / (lengths + 1e-12)
+    
+    return lengths, np.column_stack((nx_final, ny_final)), midpoints
