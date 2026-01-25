@@ -6,6 +6,8 @@ from viz import MeshPlotter
 from mesh.smoothing import spring_smoother, distmesh_smoother  
 from mesh.connectivity import build_fvm_connectivity, map_boundary_faces
 from mesh.geometry import compute_cell_metrics, compute_fvm_face_metrics
+from mesh.geometry import compute_fvm_weights
+
 
 
 if __name__ == '__main__':
@@ -69,7 +71,20 @@ if __name__ == '__main__':
     for tag, indices in bc_groups.items():
         print(f"  - Tag {tag}: {len(indices)} Faces")
         
-        
+# 1. Calculate Solver Metrics
+    d_PN, gx, vec_PN = compute_fvm_weights(face_cells, cell_centroids, face_midpoints)
+    
+    # 2. Initialize Physical Fields
+    # Temperature (T) defined at cell centers
+    T = np.zeros(len(final_cells))
+    
+    # 3. Apply an Initial Condition or BC
+    # For example, set all Tag 1 (Walls) to a specific temperature
+    # T_boundary = 300.0 
+    
+    print(f"\n--- FVM SOLVER INITIALIZATION ---")
+    print(f"Mean d_PN: {np.mean(d_PN):.4f}")
+    print(f"Field Arrays Allocated: T ({len(T)} elements)")        
     
     # 3. Package for Plotter
     plot_data = {

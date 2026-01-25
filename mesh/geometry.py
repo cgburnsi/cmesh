@@ -89,3 +89,36 @@ def compute_fvm_face_metrics(points, face_nodes, face_cells, cell_centroids):
     ny_final = (ny * flip) / (lengths + 1e-12)
     
     return lengths, np.column_stack((nx_final, ny_final)), midpoints
+
+
+
+def compute_fvm_weights(face_cells, cell_centroids, face_midpoints):
+    """
+    Calculates the distances between cell centers and interpolation weights.
+    Returns: d_PN (distance P to N), gx (interpolation weight), d_PN_vec
+    """
+    # 1. Identify Owner (P) and Neighbor (N)
+    idx_p = face_cells[:, 0]
+    idx_n = face_cells[:, 1]
+    
+    # 2. Extract Centroids for Owners
+    P = cell_centroids[idx_p]
+    
+    # 3. Extract Centroids for Neighbors
+    # For internal faces, N is the neighbor cell center.
+    # For boundary faces, N is the face midpoint.
+    internal_mask = idx_n != -1
+    N = np.zeros_like(P)
+    N[internal_mask] = cell_centroids[idx_n[internal_mask]]
+    N[~internal_mask] = face_midpoints[~internal_mask]
+    
+    # 4. d_PN Vector and Magnitude
+    d_PN_vec = N - P
+    d_PN_mag = np.linalg.norm(d_PN_vec, axis=1)
+    
+    # 5. Interpolation Weight (gx)
+    # Target value at face f: T_f = gx*T_N + (1-gx)*T_P
+    dist_Pf = np.linalg.norm(face_midpoints - P, axis=1)
+    gx = dist_Pf / (d_PN_mag + 1e-12)
+    
+    return d_PN_mag, gx, d_PN_vec
