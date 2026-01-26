@@ -7,7 +7,7 @@ from mesh.smoothing import spring_smoother, distmesh_smoother
 from mesh.connectivity import build_fvm_connectivity, map_boundary_faces
 from mesh.geometry import compute_cell_metrics, compute_fvm_face_metrics
 from mesh.geometry import compute_fvm_weights
-
+from solver.steady_state import solve_diffusion
 
 
 if __name__ == '__main__':
@@ -17,7 +17,7 @@ if __name__ == '__main__':
     # 2. Generate Mesh
     mesh = MeshGenerator(data, smoother=distmesh_smoother)
     #mesh = MeshGenerator(data, smoother=spring_smoother)
-    smoothed_points, final_cells = mesh.generate(niters=100)    
+    smoothed_points, final_cells = mesh.generate(niters=1000)    
     
 
     
@@ -70,21 +70,15 @@ if __name__ == '__main__':
     print(f"\n--- BOUNDARY CONDITION REPORT ---")
     for tag, indices in bc_groups.items():
         print(f"  - Tag {tag}: {len(indices)} Faces")
-        
-# 1. Calculate Solver Metrics
+     
+    # Steady-State Solver
     d_PN, gx, vec_PN = compute_fvm_weights(face_cells, cell_centroids, face_midpoints)
     
-    # 2. Initialize Physical Fields
-    # Temperature (T) defined at cell centers
-    T = np.zeros(len(final_cells))
+    # Solve for Steady Temperature
+    T = solve_diffusion(face_cells, face_lengths, d_PN, bc_groups, k=1.0, T_wall=500.0)
     
-    # 3. Apply an Initial Condition or BC
-    # For example, set all Tag 1 (Walls) to a specific temperature
-    # T_boundary = 300.0 
-    
-    print(f"\n--- FVM SOLVER INITIALIZATION ---")
-    print(f"Mean d_PN: {np.mean(d_PN):.4f}")
-    print(f"Field Arrays Allocated: T ({len(T)} elements)")        
+    print(f"\n--- FVM SOLVER REPORT ---")
+    print(f"  - Temperature Range: {np.min(T):.2f}K to {np.max(T):.2f}K")       
     
     # 3. Package for Plotter
     plot_data = {
