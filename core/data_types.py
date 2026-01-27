@@ -49,7 +49,7 @@ CELL_DTYPE = np.dtype([
 ])
 
 # -----------------------------------------------------------------------------
-# 2. Geometry Constraints
+# 2. Constraints (Geometric and Boundaries)
 # -----------------------------------------------------------------------------
 
 # CONSTRAINTS: Geometric shapes that faces project onto.
@@ -61,6 +61,14 @@ CONSTRAINT_DTYPE = np.dtype([
     ('p2', 'f8'),       # Parameter 2 (e.g., Center Y or Line End)
     ('p3', 'f8')        # Parameter 3 (e.g., Radius or ignored)
 ])
+
+
+BC_DTYPE = np.dtype([
+    ('id', 'i4'),       # Boundary Constraint ID
+    ('type', 'i4'),     # Type Marker:  1=Dirichlet, 2=Neumann
+    ('v', 'f8')         # Boundary value
+])
+
 
 # -----------------------------------------------------------------------------
 # 3. Sizing Field Sources

@@ -12,6 +12,13 @@ mode    axisymmetric
 [constraints]
 1      line     0.0     0.0     0.0
 
+[boundaries]
+# ID   Type       Value
+1   dirichlet   800.0       # Fixed Temperature
+2   dirichlet   500.0       # Fixed Temperature
+3   dirichlet   100.0       # Fixed Temperature
+4   neumann     0.0         # Zero Flux (Insulated or Axis)
+
 [fields]
 #1      box      1.9     0.0     2.1     2.0     0.05
 2      global   0.0     0.0     0.0     0.0     0.20
@@ -23,7 +30,7 @@ mode    axisymmetric
 3      3    4    2     6     # Cutout Slope 1 (Cold)
 4      4    5    2     6     # Cutout Slope 2 (Cold)
 5      5    6    3     8     # Right Wall (Outlet)
-6      6    1    2     12    # Bottom Wall (Cold)
+6      6    1    4     12    # Bottom Wall (Cold)
 
 [cells]
 
