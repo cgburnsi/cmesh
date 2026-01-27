@@ -29,7 +29,7 @@
 '''
 import sys
 import numpy as np
-from .data_types import NODE_DTYPE, FACE_DTYPE, CELL_DTYPE, CONSTRAINT_DTYPE, FIELD_DTYPE
+from .data_types import NODE_DTYPE, FACE_DTYPE, CELL_DTYPE, CONSTRAINT_DTYPE, BC_DTYPE, FIELD_DTYPE
 from .lexer import Lexer, TokenType 
 
 class Parser:
@@ -53,6 +53,7 @@ class Parser:
             "settings": {"mode": "axisymmetric"}, # Default setting
             "nodes": [], 
             "faces": [], 
+            "boundaries": [],
             "constraints": [], 
             "fields": []
         }
@@ -60,12 +61,14 @@ class Parser:
         # 2. Lookup Tables
         self.constraint_types = {'fixed':0, 'line':1, 'circle':2}
         self.field_types = {'global':0, 'box':1}
+        self.bc_types = {'dirichlet':1, 'neumann':2}
 
         # 3. Dispatch Table
         self.section_handlers = {
             "settings": self.parse_settings, # NEW
             "nodes": self.parse_nodes,
             "faces": self.parse_faces,
+            "boundaries": self.parse_boundaries,
             "constraints": self.parse_constraints,
             "fields": self.parse_fields,
             "cells": self.skip_section 
@@ -174,6 +177,13 @@ class Parser:
         segs = self.expect_int() 
         self.data['faces'].append((fid, n1, n2, tag, segs))
 
+    def parse_boundaries(self):
+        bid   = self.expect_int()
+        b_raw = self.expect_choice(['dirichlet', 'neumann'])
+        btype = self.bc_types.get(b_raw, 1)
+        val   = self.expect_float()
+        self.data['boundaries'].append((bid, btype, val))
+        
     def parse_constraints(self):
         cid   = self.expect_int()
         ctype = self.expect_enum(self.constraint_types, 1) 
@@ -201,6 +211,7 @@ class Parser:
             "settings":    self.data['settings'], # Return as a dict
             "nodes":       np.array(self.data['nodes'], dtype=NODE_DTYPE),
             "faces":       np.array(self.data['faces'], dtype=FACE_DTYPE),
+            "boundaries":  np.array(self.data['boundaries'], dtype=BC_DTYPE),
             "constraints": np.array(self.data['constraints'], dtype=CONSTRAINT_DTYPE),
             "fields":      np.array(self.data['fields'], dtype=FIELD_DTYPE)
         }

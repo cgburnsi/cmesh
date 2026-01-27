@@ -11,6 +11,11 @@ from solver.steady_state import solve_diffusion
 if __name__ == '__main__':
     data = input_reader('geom1.inp')
     
+    data = input_reader('geom1.inp')
+
+    # Extract BC values into a dictionary for the solver: {tag: value}
+    bc_values = {row['id']: row['v'] for row in data['boundaries']}
+
     calc_mode = data['settings'].get('mode', 'axisymmetric')
     print(f"Calculation Mode: {calc_mode}")
 
