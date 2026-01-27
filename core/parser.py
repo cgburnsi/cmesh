@@ -48,27 +48,29 @@ class Parser:
         self.curToken = None; self.peekToken = None
         self.nextToken(); self.nextToken()
         
-        # 1. Data Storage
+        # 1. Data Storage - Initialize mode to 'axisymmetric' by default
         self.data = {
+            "settings": {"mode": "axisymmetric"}, # Default setting
             "nodes": [], 
             "faces": [], 
             "constraints": [], 
             "fields": []
         }
         
-        # 2. Lookup Tables (Enums for Input File Strings)
+        # 2. Lookup Tables
         self.constraint_types = {'fixed':0, 'line':1, 'circle':2}
         self.field_types = {'global':0, 'box':1}
 
-        # 3. Dispatch Table: Maps Section Name -> Handler Method
+        # 3. Dispatch Table
         self.section_handlers = {
+            "settings": self.parse_settings, # NEW
             "nodes": self.parse_nodes,
             "faces": self.parse_faces,
             "constraints": self.parse_constraints,
             "fields": self.parse_fields,
-            "cells": self.skip_section # Placeholder for future
+            "cells": self.skip_section 
         }
-
+        
     # --- Core Parsing Helpers ---
     def checkToken(self, kind): return self.kind == kind
     
@@ -115,16 +117,26 @@ class Parser:
         self.match(TokenType.IDENTIFIER)
         self.match(TokenType.RBRACKET)
 
-        # Dispatcher Logic
         handler = self.section_handlers.get(section_name)
         if not handler:
             self.abort(f"Unknown section: [{section_name}]")
         
-        # Run the specific handler until we run out of numbers
-        while self.checkToken(TokenType.NUMBER):
+        # Updated Loop: Run handler if row starts with a NUMBER or IDENTIFIER
+        while self.checkToken(TokenType.NUMBER) or self.checkToken(TokenType.IDENTIFIER):
             handler()
 
     # --- Individual Handlers ---
+    def parse_settings(self):
+        """ Parses key-value pairs like 'mode axisymmetric' """
+        key = self.curToken.text.lower()
+        self.match(TokenType.IDENTIFIER)
+        
+        val = self.curToken.text.lower()
+        self.match(TokenType.IDENTIFIER)
+        
+        # Update the settings dictionary
+        self.data['settings'][key] = val
+        
     def parse_nodes(self):
         nid = self.expect_int()
         x   = self.expect_float()
@@ -161,7 +173,9 @@ class Parser:
         self.nextToken() 
 
     def get_arrays(self):
+        """ Returns the structured data including the settings dictionary. """
         return {
+            "settings":    self.data['settings'], # Return as a dict
             "nodes":       np.array(self.data['nodes'], dtype=NODE_DTYPE),
             "faces":       np.array(self.data['faces'], dtype=FACE_DTYPE),
             "constraints": np.array(self.data['constraints'], dtype=CONSTRAINT_DTYPE),
@@ -179,7 +193,8 @@ def input_reader(filename):
     
     
     
+ 
     
-    
-    
+
+
     

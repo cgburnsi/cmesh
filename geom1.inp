@@ -1,3 +1,6 @@
+[settings]
+mode    plana
+
 [nodes]
 1   0.0   0.0
 2   0.0   2.0
@@ -17,7 +20,7 @@
 # ID   N1   N2   Tag   Segments
 1      1    2    1     8     # Left Wall (Hot Inlet)
 2      2    3    2     4     # Top Wall (Cold)
-3      3    4    1     6     # Cutout Slope 1 (Cold)
+3      3    4    2     6     # Cutout Slope 1 (Cold)
 4      4    5    2     6     # Cutout Slope 2 (Cold)
 5      5    6    3     8     # Right Wall (Outlet)
 6      6    1    2     12    # Bottom Wall (Cold)
