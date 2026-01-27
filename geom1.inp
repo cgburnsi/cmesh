@@ -1,5 +1,5 @@
 [settings]
-mode    plana
+mode    axisymmetric
 
 [nodes]
 1   0.0   0.0

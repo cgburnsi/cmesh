@@ -105,6 +105,25 @@ class Parser:
         elif self.checkToken(TokenType.NUMBER):
             val = int(self.curToken.text); self.match(TokenType.NUMBER)
         return val
+    
+    def expect_choice(self, options, default=None):
+        """
+        Ensures the current token is a valid identifier from a list of options.
+        Returns the lowercase string value.
+        """
+        if self.checkToken(TokenType.IDENTIFIER):
+            val = self.curToken.text.lower()
+            if val in options:
+                self.match(TokenType.IDENTIFIER)
+                return val
+            else:
+                self.abort(f"Invalid choice: '{val}'. Expected one of {options}")
+        
+        if default is not None:
+            return default
+            
+        self.abort(f"Expected an identifier choice from {options}")
+        
 
     # --- Main Loop ---
     def program(self):
@@ -127,15 +146,19 @@ class Parser:
 
     # --- Individual Handlers ---
     def parse_settings(self):
-        """ Parses key-value pairs like 'mode axisymmetric' """
+        """ Parses key-value pairs with strict validation. """
         key = self.curToken.text.lower()
         self.match(TokenType.IDENTIFIER)
         
-        val = self.curToken.text.lower()
-        self.match(TokenType.IDENTIFIER)
-        
-        # Update the settings dictionary
-        self.data['settings'][key] = val
+        if key == "mode":
+            # Use the helper to enforce valid coordinate systems
+            val = self.expect_choice(['planar', 'axisymmetric'], default='axisymmetric')
+            self.data['settings'][key] = val
+        else:
+            # For other settings, we might allow any identifier or number
+            val = self.curToken.text.lower()
+            self.match(TokenType.IDENTIFIER)
+            self.data['settings'][key] = val
         
     def parse_nodes(self):
         nid = self.expect_int()
