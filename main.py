@@ -9,16 +9,16 @@ from mesh.geometry import compute_cell_metrics, compute_fvm_face_metrics, comput
 from solver.steady_state import solve_diffusion
 
 if __name__ == '__main__':
-    data = input_reader('geom1.inp')
     
     data = input_reader('geom1.inp')
-
-    # Extract BC values into a dictionary for the solver: {tag: value}
-    bc_values = {row['id']: row['v'] for row in data['boundaries']}
-
     calc_mode = data['settings'].get('mode', 'axisymmetric')
     print(f"Calculation Mode: {calc_mode}")
 
+    
+    # Extract BC values into a dictionary for the solver: {tag: value}
+    bc_values = {row['id']: row['v'] for row in data['boundaries']}
+
+    
     mesh = MeshGenerator(data, smoother=distmesh_smoother)
     smoothed_points, final_cells = mesh.generate(niters=1000)    
     
@@ -32,7 +32,7 @@ if __name__ == '__main__':
     d_PN, gx, vec_PN = compute_fvm_weights(face_cells, cell_centroids, face_midpoints)
     
     # 1. Define Temperature Gradient (800K Inlet, 300K Walls/Outlet)
-    boundary_conditions = {1: 800.0, 2: 300.0, 3: 100.0}
+    boundary_conditions = {1: 1800.0, 2: 300.0, 3: 100.0}
     T = solve_diffusion(face_cells, face_lengths, d_PN, bc_groups, k=1.0, bc_values=boundary_conditions)
     
     # 2. Print Reports

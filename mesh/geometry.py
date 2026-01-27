@@ -38,8 +38,69 @@ def compute_triangle_quality(points, simplices):
     return np.where(denom > 0, (8.0 * area**2) / denom, 0.0)
 
 
-''' mesh/geometry.py '''
-import numpy as np
+def compute_cell_metrics(points, cells, mode='axisymmetric'):
+    """ 
+    Calculates Volume and Centroid for every triangular cell.
+    - Planar: Volume = Area * 1.0
+    - Axisymmetric: Volume = Area * 2 * pi * y_centroid
+    """
+    pts = points[cells] 
+    A, B, C = pts[:, 0], pts[:, 1], pts[:, 2]
+
+    # 1. Standard Planar Area
+    area = 0.5 * np.abs(A[:,0]*(B[:,1]-C[:,1]) + B[:,0]*(C[:,1]-A[:,1]) + C[:,0]*(A[:,1]-B[:,1]))
+    
+    # 2. Centroid (Radius is the Y-coordinate)
+    centroid = (A + B + C) / 3.0
+    y_centroid = centroid[:, 1]
+    
+    # 3. Scaling for Axisymmetry
+    if mode == 'axisymmetric':
+        volume = area * (2.0 * np.pi * y_centroid)
+    else:
+        volume = area # Planar (unit depth)
+    
+    return volume, centroid
+
+def compute_fvm_face_metrics(points, face_nodes, face_cells, cell_centroids, mode='axisymmetric'):
+    """ 
+    Calculates Face Areas and Oriented Normals.
+    - Planar: Face Area = Length * 1.0
+    - Axisymmetric: Face Area = Length * 2 * pi * y_midpoint
+    """
+    p1 = points[face_nodes[:, 0]]
+    p2 = points[face_nodes[:, 1]]
+    
+    # 1. Length and Midpoint
+    dx = p2[:, 0] - p1[:, 0]
+    dy = p2[:, 1] - p1[:, 1]
+    lengths = np.sqrt(dx**2 + dy**2)
+    midpoints = 0.5 * (p1 + p2)
+    y_mid = midpoints[:, 1]
+    
+    # 2. Candidate Normal (dy, -dx)
+    nx, ny = dy, -dx
+    
+    # 3. Orientation (Must point from Owner to Neighbor)
+    owner_centroids = cell_centroids[face_cells[:, 0]]
+    vec_owner_to_face = midpoints - owner_centroids
+    dot = vec_owner_to_face[:, 0] * nx + vec_owner_to_face[:, 1] * ny
+    flip = np.where(dot < 0, -1.0, 1.0)
+    
+    # 4. Scaling for Axisymmetry
+    if mode == 'axisymmetric':
+        # Surface Area of the frustum/ring
+        face_areas = lengths * (2.0 * np.pi * y_mid)
+    else:
+        face_areas = lengths # Planar (unit depth)
+        
+    # Final Unit Normals
+    nx_final = (nx * flip) / (lengths + 1e-12)
+    ny_final = (ny * flip) / (lengths + 1e-12)
+    
+    return face_areas, np.column_stack((nx_final, ny_final)), midpoints
+
+# ... (keep existing compute_fvm_weights and compute_triangle_quality) ...
 
 def compute_cell_metrics(points, cells):
     """ 
