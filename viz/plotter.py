@@ -32,3 +32,12 @@ class MeshPlotter:
     def save(self, filename):
         plt.savefig(filename, dpi=300, bbox_inches='tight')
         print(f"Plot saved to {filename}")
+        
+    def plot_scalar(self, points, cells, scalar, title="Temperature Field", cmap='hot'):
+        """ Plots the scalar field on the triangular mesh. """
+        # tripcolor handles the unstructured grid plotting
+        tpc = self.ax.tripcolor(points[:, 0], points[:, 1], cells, 
+                                facecolors=scalar, cmap=cmap, edgecolors='w', linewidth=0.1)
+        self.fig.colorbar(tpc, ax=self.ax, label='Temperature (K)')
+        self.ax.set_title(title)
+        return tpc

@@ -11,15 +11,16 @@
 
 [fields]
 #1      box      1.9     0.0     2.1     2.0     0.05
-2      global   0.0     0.0     0.0     0.0     0.25
+2      global   0.0     0.0     0.0     0.0     0.20
 
 [faces]
-# ID   N1   N2   Tag   Segments (Synchronized to h=0.25)
-1      1    2    1     8
-2      2    3    1     4
-3      3    4    1     6
-4      4    5    1     6
-5      5    6    1     8
-6      6    1    1     12
+# ID   N1   N2   Tag   Segments
+1      1    2    1     8     # Left Wall (Hot Inlet)
+2      2    3    2     4     # Top Wall (Cold)
+3      3    4    1     6     # Cutout Slope 1 (Cold)
+4      4    5    2     6     # Cutout Slope 2 (Cold)
+5      5    6    3     8     # Right Wall (Outlet)
+6      6    1    2     12    # Bottom Wall (Cold)
 
 [cells]
+
