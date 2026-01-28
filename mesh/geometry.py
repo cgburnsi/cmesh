@@ -37,7 +37,6 @@ def compute_triangle_quality(points, simplices):
     denom = s * a * b * c
     return np.where(denom > 0, (8.0 * area**2) / denom, 0.0)
 
-
 def compute_cell_metrics(points, cells, mode='axisymmetric'):
     """ 
     Calculates Volume and Centroid for every triangular cell.
@@ -100,85 +99,24 @@ def compute_fvm_face_metrics(points, face_nodes, face_cells, cell_centroids, mod
     
     return face_areas, np.column_stack((nx_final, ny_final)), midpoints
 
-# ... (keep existing compute_fvm_weights and compute_triangle_quality) ...
-
-def compute_cell_metrics(points, cells):
-    """ 
-    Calculates Area and Centroid for every triangular cell as NumPy arrays.
-    Returns: (area_array, centroid_array)
-    """
-    pts = points[cells] # Shape: (N_cells, 3, 2)
-    A, B, C = pts[:, 0], pts[:, 1], pts[:, 2]
-
-    # Area (N_cells,)
-    area = 0.5 * np.abs(A[:,0]*(B[:,1]-C[:,1]) + B[:,0]*(C[:,1]-A[:,1]) + C[:,0]*(A[:,1]-B[:,1]))
-    
-    # Centroid (N_cells, 2)
-    centroid = (A + B + C) / 3.0
-    
-    return area, centroid
-
-def compute_fvm_face_metrics(points, face_nodes, face_cells, cell_centroids):
-    """ 
-    Calculates Lengths and Oriented Normals for FVM faces.
-    Returns: (lengths, oriented_normals, midpoints) all as NumPy arrays.
-    """
-    p1 = points[face_nodes[:, 0]]
-    p2 = points[face_nodes[:, 1]]
-    
-    # 1. Edge Vectors and Lengths
-    dx = p2[:, 0] - p1[:, 0]
-    dy = p2[:, 1] - p1[:, 1]
-    lengths = np.sqrt(dx**2 + dy**2)
-    midpoints = 0.5 * (p1 + p2)
-    
-    # 2. Candidate Normal (dy, -dx)
-    nx = dy
-    ny = -dx
-    
-    # 3. Orientation Logic (Vectorized)
-    # The normal MUST point from face_cells[:, 0] (Owner) to face_cells[:, 1] (Neighbor)
-    owner_centroids = cell_centroids[face_cells[:, 0]]
-    vec_owner_to_face = midpoints - owner_centroids
-    
-    # Dot product to check if the candidate normal is pointing the right way
-    dot = vec_owner_to_face[:, 0] * nx + vec_owner_to_face[:, 1] * ny
-    flip = np.where(dot < 0, -1.0, 1.0)
-    
-    # Apply flip and normalize to create unit normals
-    nx_final = (nx * flip) / (lengths + 1e-12)
-    ny_final = (ny * flip) / (lengths + 1e-12)
-    
-    return lengths, np.column_stack((nx_final, ny_final)), midpoints
-
-
-
 def compute_fvm_weights(face_cells, cell_centroids, face_midpoints):
     """
     Calculates the distances between cell centers and interpolation weights.
     Returns: d_PN (distance P to N), gx (interpolation weight), d_PN_vec
     """
-    # 1. Identify Owner (P) and Neighbor (N)
     idx_p = face_cells[:, 0]
     idx_n = face_cells[:, 1]
     
-    # 2. Extract Centroids for Owners
     P = cell_centroids[idx_p]
     
-    # 3. Extract Centroids for Neighbors
-    # For internal faces, N is the neighbor cell center.
-    # For boundary faces, N is the face midpoint.
     internal_mask = idx_n != -1
     N = np.zeros_like(P)
     N[internal_mask] = cell_centroids[idx_n[internal_mask]]
     N[~internal_mask] = face_midpoints[~internal_mask]
     
-    # 4. d_PN Vector and Magnitude
     d_PN_vec = N - P
     d_PN_mag = np.linalg.norm(d_PN_vec, axis=1)
     
-    # 5. Interpolation Weight (gx)
-    # Target value at face f: T_f = gx*T_N + (1-gx)*T_P
     dist_Pf = np.linalg.norm(face_midpoints - P, axis=1)
     gx = dist_Pf / (d_PN_mag + 1e-12)
     
