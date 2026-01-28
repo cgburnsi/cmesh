@@ -177,12 +177,23 @@ class Parser:
         segs = self.expect_int() 
         self.data['faces'].append((fid, n1, n2, tag, segs))
 
+
     def parse_boundaries(self):
         bid   = self.expect_int()
         b_raw = self.expect_choice(['dirichlet', 'neumann'])
         btype = self.bc_types.get(b_raw, 1)
         val   = self.expect_float()
-        self.data['boundaries'].append((bid, btype, val))
+        
+        # Check for optional U and V velocity inputs
+        u = 0.0
+        v = 0.0
+        if self.checkToken(TokenType.NUMBER):
+            u = self.expect_float()
+            if self.checkToken(TokenType.NUMBER):
+                v = self.expect_float()
+                
+        self.data['boundaries'].append((bid, btype, val, u, v))
+
         
     def parse_constraints(self):
         cid   = self.expect_int()

@@ -62,11 +62,13 @@ CONSTRAINT_DTYPE = np.dtype([
     ('p3', 'f8')        # Parameter 3 (e.g., Radius or ignored)
 ])
 
-
+# BOUNDARY CONDITIONS: 
 BC_DTYPE = np.dtype([
     ('id', 'i4'),       # Boundary Constraint ID
-    ('type', 'i4'),     # Type Marker:  1=Dirichlet, 2=Neumann
-    ('v', 'f8')         # Boundary value
+    ('type', 'i4'),     # Type Marker: 1=Dirichlet, 2=Neumann
+    ('v', 'f8'),        # Boundary value (e.g., Temperature)
+    ('u', 'f8'),        # Axial velocity component (Phase 2)
+    ('v_vel', 'f8')     # Radial velocity component (Phase 2)
 ])
 
 

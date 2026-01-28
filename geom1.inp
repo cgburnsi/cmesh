@@ -12,16 +12,17 @@ mode    axisymmetric
 [constraints]
 1      line     0.0     0.0     0.0
 
+
 [boundaries]
-# ID   Type       Value
-1   dirichlet   800.0       # Fixed Temperature
-2   dirichlet   500.0       # Fixed Temperature
-3   dirichlet   100.0       # Fixed Temperature
-4   neumann     0.0         # Zero Flux (Insulated or Axis)
+# ID   Type       Value   U (axial)  V (radial)
+1   dirichlet   800.0   2.0        0.0     # Inlet: 2 m/s axial flow
+2   dirichlet   500.0   0.0        0.0     
+3   dirichlet   100.0   0.0        0.0     
+4   neumann     0.0     0.0        0.0     # Axis/Insulated
 
 [fields]
 #1      box      1.9     0.0     2.1     2.0     0.05
-2      global   0.0     0.0     0.0     0.0     0.20
+2      global    0.0     0.0     0.0     0.0     0.20
 
 [faces]
 # ID   N1   N2   Tag   Segments

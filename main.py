@@ -30,10 +30,16 @@ if __name__ == '__main__':
     FVMReporter.mesh_stats(q_stats, cell_vols)
     FVMReporter.topology(face_cells)
 
-    # 4. Phase 2 Setup: Constant Velocity Field
-    # u = 2.0 m/s (Axial), v = 0.0 m/s (Radial)
+    # 4. Phase 2 Setup: Dynamic Velocity Field
+    # Pull global constant velocity from the first boundary entry (Inlet)
+    u_init = data['boundaries']['u'][0]
+    v_init = data['boundaries']['v_vel'][0]
+    
     u_field = np.zeros((len(face_areas), 2))
-    u_field[:, 0] = 2.0 
+    u_field[:, 0] = u_init 
+    u_field[:, 1] = v_init
+    
+    print(f"Applying boundary-defined flow: u={u_init}, v={v_init}") 
     
     # 5. Mapping and Solver
     bc_values = {row['id']: row['v'] for row in data['boundaries']}
