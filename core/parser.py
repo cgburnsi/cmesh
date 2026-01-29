@@ -6,26 +6,6 @@
     the structured NumPy arrays (Nodes, Faces, Fields) required by the core 
     engine. It uses a "Dispatch Table" pattern to cleanly separate the logic 
     for each section of the input file.
-
-    Attribution & License:
-    ----------------------
-    The recursive descent architecture used here is adapted from the 
-    "Teeny Tiny Compiler" project by Austen Hensley.  I have not used much of
-    his emitter code since I am sending data directly to the numpy arrays.
-    
-    Source: https://github.com/austenhensley
-    
-    Copyright (c) 2024 Austen Hensley
-    
-    Permission is hereby granted, free of charge, to any person obtaining a copy
-    of this software and associated documentation files (the "Software"), to deal
-    in the Software without restriction, including without limitation the rights
-    to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-    copies of the Software, and to permit persons to whom the Software is
-    furnished to do so, subject to the following conditions:
-    
-    The above copyright notice and this permission notice shall be included in all
-    copies or substantial portions of the Software.
 '''
 import sys
 import numpy as np
@@ -40,15 +20,14 @@ class Parser:
     - Recursive Descent: The 'program' method calls 'process_section', which 
       dispatches to specific handlers (e.g., 'parse_nodes').
     - Dispatch Table: Section handlers are registered in 'self.section_handlers',
-      making it easy to add new features (like Materials or BCs) without 
-      breaking the core loop.
+      making it easy to add new features without breaking the core loop.
     """
     def __init__(self, lexer):
         self.lexer = lexer
         self.curToken = None; self.peekToken = None
         self.nextToken(); self.nextToken()
         
-        # 1. Data Storage - Initialize mode to 'axisymmetric' by default
+        # 1. Data Storage
         self.data = {
             "settings": {"mode": "axisymmetric"}, # Default setting
             "nodes": [], 
@@ -65,7 +44,7 @@ class Parser:
 
         # 3. Dispatch Table
         self.section_handlers = {
-            "settings": self.parse_settings, # NEW
+            "settings": self.parse_settings,
             "nodes": self.parse_nodes,
             "faces": self.parse_faces,
             "boundaries": self.parse_boundaries,
@@ -98,7 +77,19 @@ class Parser:
     def expect_float(self):
         val = float(self.curToken.text); self.match(TokenType.NUMBER)
         return val
+    
+    def expect_choice(self, options, default=None):
+        if self.checkToken(TokenType.IDENTIFIER):
+            val = self.curToken.text.lower()
+            if val in options:
+                self.match(TokenType.IDENTIFIER)
+                return val
+            else:
+                self.abort(f"Invalid choice: '{val}'. Expected one of {options}")
         
+        if default is not None: return default
+        self.abort(f"Expected an identifier choice from {options}")
+
     def expect_enum(self, mapping_dict, default_val):
         val = default_val
         if self.checkToken(TokenType.IDENTIFIER):
@@ -108,25 +99,6 @@ class Parser:
         elif self.checkToken(TokenType.NUMBER):
             val = int(self.curToken.text); self.match(TokenType.NUMBER)
         return val
-    
-    def expect_choice(self, options, default=None):
-        """
-        Ensures the current token is a valid identifier from a list of options.
-        Returns the lowercase string value.
-        """
-        if self.checkToken(TokenType.IDENTIFIER):
-            val = self.curToken.text.lower()
-            if val in options:
-                self.match(TokenType.IDENTIFIER)
-                return val
-            else:
-                self.abort(f"Invalid choice: '{val}'. Expected one of {options}")
-        
-        if default is not None:
-            return default
-            
-        self.abort(f"Expected an identifier choice from {options}")
-        
 
     # --- Main Loop ---
     def program(self):
@@ -143,83 +115,67 @@ class Parser:
         if not handler:
             self.abort(f"Unknown section: [{section_name}]")
         
-        # Updated Loop: Run handler if row starts with a NUMBER or IDENTIFIER
         while self.checkToken(TokenType.NUMBER) or self.checkToken(TokenType.IDENTIFIER):
             handler()
 
     # --- Individual Handlers ---
     def parse_settings(self):
-        """ Parses key-value pairs with strict validation. """
         key = self.curToken.text.lower()
         self.match(TokenType.IDENTIFIER)
         
         if key == "mode":
-            # Use the helper to enforce valid coordinate systems
             val = self.expect_choice(['planar', 'axisymmetric'], default='axisymmetric')
             self.data['settings'][key] = val
         else:
-            # For other settings, we might allow any identifier or number
             val = self.curToken.text.lower()
             self.match(TokenType.IDENTIFIER)
             self.data['settings'][key] = val
         
     def parse_nodes(self):
-        nid = self.expect_int()
-        x   = self.expect_float()
-        y   = self.expect_float()
+        nid = self.expect_int(); x = self.expect_float(); y = self.expect_float()
         self.data['nodes'].append((nid, x, y))
 
     def parse_faces(self):
-        fid  = self.expect_int()
-        n1   = self.expect_int()
-        n2   = self.expect_int()
-        tag  = self.expect_int()
-        segs = self.expect_int() 
+        fid = self.expect_int(); n1 = self.expect_int(); n2 = self.expect_int()
+        tag = self.expect_int(); segs = self.expect_int() 
         self.data['faces'].append((fid, n1, n2, tag, segs))
 
-
     def parse_boundaries(self):
+        """ 
+        Parses the full set of primitives (rho, u, v, p, T) for each boundary tag. 
+        """
         bid   = self.expect_int()
         b_raw = self.expect_choice(['dirichlet', 'neumann'])
         btype = self.bc_types.get(b_raw, 1)
-        val   = self.expect_float()
         
-        # Check for optional U and V velocity inputs
-        u = 0.0
-        v = 0.0
-        if self.checkToken(TokenType.NUMBER):
-            u = self.expect_float()
-            if self.checkToken(TokenType.NUMBER):
-                v = self.expect_float()
+        # Sequentially extract the 5 primitive variables required by BC_DTYPE
+        rho = self.expect_float() # Density
+        u   = self.expect_float() # Axial Velocity
+        v   = self.expect_float() # Radial Velocity
+        p   = self.expect_float() # Pressure
+        T   = self.expect_float() # Temperature
                 
-        self.data['boundaries'].append((bid, btype, val, u, v))
+        # Append as a 7-element tuple matching the new BC_DTYPE layout
+        self.data['boundaries'].append((bid, btype, rho, u, v, p, T))
 
-        
     def parse_constraints(self):
-        cid   = self.expect_int()
-        ctype = self.expect_enum(self.constraint_types, 1) 
-        p1    = self.expect_float()
-        p2    = self.expect_float()
-        p3    = self.expect_float()
+        cid = self.expect_int(); ctype = self.expect_enum(self.constraint_types, 1) 
+        p1 = self.expect_float(); p2 = self.expect_float(); p3 = self.expect_float()
         self.data['constraints'].append((cid, ctype, 0, p1, p2, p3))
 
     def parse_fields(self):
-        sid   = self.expect_int()
-        stype = self.expect_enum(self.field_types, 0)
-        x1    = self.expect_float()
-        y1    = self.expect_float()
-        x2    = self.expect_float()
-        y2    = self.expect_float()
-        v     = self.expect_float()
+        sid = self.expect_int(); stype = self.expect_enum(self.field_types, 0)
+        x1 = self.expect_float(); y1 = self.expect_float()
+        x2 = self.expect_float(); y2 = self.expect_float(); v = self.expect_float()
         self.data['fields'].append((sid, stype, x1, y1, x2, y2, v))
 
     def skip_section(self):
         self.nextToken() 
 
     def get_arrays(self):
-        """ Returns the structured data including the settings dictionary. """
+        """ Returns the data as structured NumPy arrays using the updated dtypes. """
         return {
-            "settings":    self.data['settings'], # Return as a dict
+            "settings":    self.data['settings'],
             "nodes":       np.array(self.data['nodes'], dtype=NODE_DTYPE),
             "faces":       np.array(self.data['faces'], dtype=FACE_DTYPE),
             "boundaries":  np.array(self.data['boundaries'], dtype=BC_DTYPE),
@@ -227,19 +183,9 @@ class Parser:
             "fields":      np.array(self.data['fields'], dtype=FIELD_DTYPE)
         }
 
-# This is the public facing code for loading a data file
 def input_reader(filename):
     with open(filename, 'r') as f: 
         lexer  = Lexer(f.read())
         parser = Parser(lexer)
         parser.program()
-        
         return parser.get_arrays()
-    
-    
-    
- 
-    
-
-
-    
