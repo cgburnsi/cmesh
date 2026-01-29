@@ -62,15 +62,18 @@ CONSTRAINT_DTYPE = np.dtype([
     ('p3', 'f8')        # Parameter 3 (e.g., Radius or ignored)
 ])
 
-# BOUNDARY CONDITIONS: 
 BC_DTYPE = np.dtype([
-    ('id', 'i4'),       # Boundary Constraint ID
-    ('type', 'i4'),     # Type Marker: 1=Dirichlet, 2=Neumann
-    ('v', 'f8'),        # Boundary value (e.g., Temperature)
-    ('u', 'f8'),        # Axial velocity component (Phase 2)
-    ('v_vel', 'f8')     # Radial velocity component (Phase 2)
+    ('id', 'i4'),       # Boundary Tag ID
+    ('type', 'i4'),     # 1=Dirichlet, 2=Neumann
+    
+    # We now store the full set of primitive values for the boundary
+    ('rho', 'f8'),      
+    ('u',   'f8'),      
+    ('v',   'f8'),      
+    ('p',   'f8') ,
+    ('T',   'f8')       # Added T for BC convenience
+      
 ])
-
 
 # -----------------------------------------------------------------------------
 # 3. Sizing Field Sources
@@ -81,8 +84,7 @@ FIELD_DTYPE = np.dtype([
     ('id', 'i4'),       # Source ID
     ('type', 'i4'),     # Source Type:
                         #   0 = Global Background Size
-                        #   1 = Box Region (Requires x1, y1, x2, y2)
-                        
+                        #   1 = Box Region (Requires x1, y1, x2, y2)                       
     ('x1', 'f8'),       # Bounding Box Min X
     ('y1', 'f8'),       # Bounding Box Min Y
     ('x2', 'f8'),       # Bounding Box Max X
@@ -92,5 +94,36 @@ FIELD_DTYPE = np.dtype([
                         # The sizing field will create a gradient from this 
                         # value back to the background size.
 ])
-    
+   
+
+# -----------------------------------------------------------------------------
+# 4. Fluid State Definitions (New for Phase 3)
+# -----------------------------------------------------------------------------
+
+# PRIMITIVE STATE: The variables we usually think about physically.
+# Useful for boundary conditions and post-processing visualization.
+# PRIMITIVE STATE: Includes T for ease of use in BCs and Viz
+PRIMITIVE_DTYPE = np.dtype([
+    ('rho', 'f8'),      # Density
+    ('u',   'f8'),      # Axial Velocity
+    ('v',   'f8'),      # Radial Velocity
+    ('p',   'f8'),      # Pressure
+    ('T',   'f8')       # Temperature
+])
+
+# CONSERVATIVE STATE: The variables actually solved by the Euler equations.
+# Used directly in the HLLC Riemann solver loop.
+CONSERVATIVE_DTYPE = np.dtype([
+    ('rho',   'f8'),    # Mass density
+    ('rhou',  'f8'),    # Axial momentum
+    ('rhov',  'f8'),    # Radial momentum
+    ('rhoE',  'f8')     # Total energy density
+])
+
+''' core/data_types.py '''
+
+
+# BC_DTYPE: Allows the .inp file to define temperature directly
+
+
     
