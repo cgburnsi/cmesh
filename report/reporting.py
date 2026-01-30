@@ -29,6 +29,17 @@ class FVMReporter:
         print(f"  - Boundary Faces:   {boundary}")
 
     @staticmethod
+    def residual_report(step, residuals):
+        """ 
+        Reports the L2-norm of the residuals to monitor convergence.
+        In FVM, this is the net flux sum for each cell.
+        """
+        l2_norm = np.sqrt(np.mean(residuals**2))
+        if step % 500 == 0:
+            print(f"  > Step {step:6d} | Residual L2 Norm: {l2_norm:.6e}")
+        return l2_norm
+
+    @staticmethod
     def scalar_report(scalar_field, label="Temperature"):
         """ Reports the final range of the solved physical field. """
         print(f"\n--- FVM GRADIENT REPORT: {label} ---")
