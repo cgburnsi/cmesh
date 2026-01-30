@@ -183,9 +183,10 @@ class Parser:
         ctype_str = self.expect_choice(['fixed', 'line', 'circle', 'arc'])
         ctype = self.constraint_types.get(ctype_str, 1)
         
-        # Read the rest of the line as floats until the next ID or Section
+        # FIX: Read the rest of the line as floats, but STOP at 5 to avoid eating 
+        # the ID of the next entry.
         params = []
-        while self.checkToken(TokenType.NUMBER):
+        while len(params) < 5 and self.checkToken(TokenType.NUMBER):
             params.append(self.expect_float())
         
         # Pad with zeros to fit the 5-parameter DTYPE

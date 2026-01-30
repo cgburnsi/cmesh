@@ -5,17 +5,18 @@ from .containment import check_points_inside
 def resample_boundary_points(nodes, faces, sizing_field, constraints=None):
     """
     Distributes points along edges based on the 'segments' count,
-    now aware of geometric constraints (arcs).
+    now aware of geometric constraints (arcs) via the 'ctag' system.
     """
     sliding_points = []
     sliding_face_ids = []
     
-    # Build a lookup for face-specific constraints
+    # 1. Build a lookup for constraints based on their ID (C_Tag)
     constraint_map = {}
     if constraints is not None:
         for c in constraints:
-            if c['target'] > 0:
-                constraint_map[c['target']] = c
+            # We now use the constraint's ID as the key for tag-based lookups
+            if c['id'] > 0:
+                constraint_map[c['id']] = c
     
     for i, face in enumerate(faces):
         idx1, idx2 = face['n1'] - 1, face['n2'] - 1
@@ -25,20 +26,20 @@ def resample_boundary_points(nodes, faces, sizing_field, constraints=None):
         p1 = np.array([nodes['x'][idx1], nodes['y'][idx1]])
         p2 = np.array([nodes['x'][idx2], nodes['y'][idx2]])
         
-        # Check for arc constraint (type 2)
-        const = constraint_map.get(face['id'])
+        # 2. Look up the constraint using the face's 'ctag'
+        const = constraint_map.get(face['ctag'])
         is_arc = (const is not None and const['type'] == 2)
         
         n_samples = 100
         t_samples = np.linspace(0, 1, n_samples)
         
         if is_arc:
-            # Arc logic: Interpolate angles around the center
+            # Arc logic: Interpolate angles around the center defined in params p1, p2, p3
             cx, cy, R = const['p1'], const['p2'], const['p3']
             theta1 = np.arctan2(p1[1] - cy, p1[0] - cx)
             theta2 = np.arctan2(p2[1] - cy, p2[0] - cx)
             
-            # Shortest path logic
+            # Shortest path logic to ensure the arc doesn't wrap the long way around
             d_theta = theta2 - theta1
             if d_theta > np.pi: d_theta -= 2.0 * np.pi
             if d_theta < -np.pi: d_theta += 2.0 * np.pi
@@ -49,10 +50,10 @@ def resample_boundary_points(nodes, faces, sizing_field, constraints=None):
                 cy + R * np.sin(theta_samples)
             ))
         else:
-            # Linear logic
+            # Linear logic (C_Tag 0 or Line constraint)
             sample_pts = p1 + (p2 - p1) * t_samples[:, np.newaxis]
         
-        # Re-map 't' based on sizing field density
+        # 3. Re-map 't' based on sizing field density for adaptive boundary spacing
         h_vals = sizing_field(sample_pts)
         density = 1.0 / np.maximum(h_vals, 1e-6)
         cumulative = np.cumsum(density)
@@ -71,6 +72,8 @@ def resample_boundary_points(nodes, faces, sizing_field, constraints=None):
             sliding_face_ids.append(i)
             
     return np.array(sliding_points), np.array(sliding_face_ids)
+
+# ... generate_inner_points remains unchanged
 
 
 def generate_inner_points(nodes, faces, sizing_func):

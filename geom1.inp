@@ -32,7 +32,7 @@ air         287.05            1.4
 
 [faces]
 # ID   Node 1   Node 2  BC_Tag  C_Tag   Segments
-1      1        2       1       1       8     # Left Wall (Hot Inlet)
+1      1        2       1       2       8     # Left Wall (Hot Inlet)
 2      2        3       2       1       4     # Top Wall (Cold)
 3      3        4       2       1       6     # Cutout Slope 1 (Cold)
 4      4        5       2       1       6     # Cutout Slope 2 (Cold)
