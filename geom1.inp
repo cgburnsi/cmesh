@@ -19,7 +19,7 @@ air         287.05            1.4
 
 [boundaries]
 # ID   Type        u(axial)   v(radial)   p(Pascal)   T(Kelvin)
-1      dirichlet   0.10       0.0         101325.0    800.0     # Inlet
+1      dirichlet   2.0        0.0         101325.0    800.0     # Inlet
 2      dirichlet   0.0        0.0         101325.0    500.0     # Wall (Top)
 3      dirichlet   0.0        0.0         50000.0     100.0     # Outlet
 4      neumann     0.0        0.0         0.0         0.0       # Axis/Insulated

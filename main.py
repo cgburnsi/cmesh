@@ -17,14 +17,13 @@ if __name__ == '__main__':
     FVMReporter.sys_init(calc_mode, data)
    
     # 1. Access Fluid Properties
-    # Assuming 'air' is your active fluid for this run
     fluid = data['fluids'].get('air')
     r_gas = fluid['R'] if fluid else 287.05
     
-    # 2. Extract BC values specifically from the 'T' field
+    # 2. Extract BC values specifically from the 'T' (Temperature) field
     bc_values = {row['id']: row['T'] for row in data['boundaries']}
     
-    # 3. Calculate Inlet Density for Diagnostic (Optional)
+    # 3. Calculate Inlet Density for Diagnostic
     p_inlet = data['boundaries']['p'][0]
     t_inlet = data['boundaries']['T'][0]
     rho_inlet = p_inlet / (r_gas * t_inlet)
@@ -57,10 +56,11 @@ if __name__ == '__main__':
     print(f"Applying boundary-defined flow: u={u_init}, v={v_init}") 
     
     # 5. Mapping and Solver
-    bc_values = {row['id']: row['v'] for row in data['boundaries']}
+    # bc_groups is defined here by the mapping function
     bc_groups = map_boundary_faces(points, face_nodes, face_cells, data['nodes'], data['faces'])    
     d_PN, _, _ = compute_fvm_weights(face_cells, cell_centroids, face_mids)
     
+    # The solver uses bc_groups to apply the temperatures in bc_values
     T = solve_advection_diffusion(
         face_cells, face_areas, face_normals, d_PN, bc_groups, 
         cell_vols, u_field, k=1.0, bc_values=bc_values
@@ -70,5 +70,5 @@ if __name__ == '__main__':
     # 6. Visualization
     plot_data = {'xv': points[:, 0], 'yv': points[:, 1], 'lcv': cells}
     thermal_view = MeshPlotter(arrays=plot_data)
-    thermal_view.plot_scalar(points, cells, T, title=f"Advection-Diffusion (Axisymmetric)")
+    thermal_view.plot_scalar(points, cells, T, title="Advection-Diffusion (Axisymmetric)")
     thermal_view.show()
