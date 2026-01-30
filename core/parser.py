@@ -30,6 +30,7 @@ class Parser:
         # 1. Data Storage
         self.data = {
             "settings": {"mode": "axisymmetric"}, # Default setting
+            "fluids": {},        # NEW: Storage for fluid properties
             "nodes": [], 
             "faces": [], 
             "boundaries": [],
@@ -45,6 +46,7 @@ class Parser:
         # 3. Dispatch Table
         self.section_handlers = {
             "settings": self.parse_settings,
+            "fluids": self.parse_fluids,   # NEW: Handler for [fluids]
             "nodes": self.parse_nodes,
             "faces": self.parse_faces,
             "boundaries": self.parse_boundaries,
@@ -131,6 +133,20 @@ class Parser:
             self.match(TokenType.IDENTIFIER)
             self.data['settings'][key] = val
         
+    def parse_fluids(self):
+        """ Parses fluid names and their thermodynamic constants. """
+        fluid_name = self.curToken.text.lower()
+        self.match(TokenType.IDENTIFIER)
+        
+        # Expecting: gas_constant gamma
+        r_gas = self.expect_float()
+        gamma = self.expect_float()
+        
+        self.data['fluids'][fluid_name] = {
+            "R": r_gas,
+            "gamma": gamma
+        }
+        
     def parse_nodes(self):
         nid = self.expect_int(); x = self.expect_float(); y = self.expect_float()
         self.data['nodes'].append((nid, x, y))
@@ -176,6 +192,7 @@ class Parser:
         """ Returns the data as structured NumPy arrays using the updated dtypes. """
         return {
             "settings":    self.data['settings'],
+            "fluids":      self.data['fluids'],     # Return the fluids dict
             "nodes":       np.array(self.data['nodes'], dtype=NODE_DTYPE),
             "faces":       np.array(self.data['faces'], dtype=FACE_DTYPE),
             "boundaries":  np.array(self.data['boundaries'], dtype=BC_DTYPE),

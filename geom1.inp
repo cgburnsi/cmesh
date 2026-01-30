@@ -1,6 +1,11 @@
 [settings]
 mode    axisymmetric
 
+[fluids]
+# Name      Gas_Constant(R)   Gamma
+air         287.05            1.4
+methane     518.30            1.32
+
 [nodes]
 1   0.0   0.0
 2   0.0   2.0
@@ -12,13 +17,12 @@ mode    axisymmetric
 [constraints]
 1      line     0.0     0.0     0.0
 
-
 [boundaries]
-# ID   Type       Value   U (axial)  V (radial)
-1   dirichlet   800.0   2.0        0.0     # Inlet: 2 m/s axial flow
-2   dirichlet   500.0   0.0        0.0     
-3   dirichlet   100.0   0.0        0.0     
-4   neumann     0.0     0.0        0.0     # Axis/Insulated
+# ID   Type        u(axial)   v(radial)   p(Pascal)   T(Kelvin)
+1      dirichlet   20.0       0.0         101325.0    300.0     # Inlet
+2      dirichlet   0.0        0.0         101325.0    500.0     # Wall (Top)
+3      dirichlet   0.0        0.0         50000.0     100.0     # Outlet
+4      neumann     0.0        0.0         0.0         0.0       # Axis/Insulated
 
 [fields]
 #1      box      1.9     0.0     2.1     2.0     0.05

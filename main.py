@@ -15,6 +15,17 @@ if __name__ == '__main__':
     data = input_reader('geom1.inp')
     calc_mode = data['settings'].get('mode', 'axisymmetric')
     FVMReporter.sys_init(calc_mode, data)
+    fluid = data['fluids'].get('air') # Or pull from a 'active_fluid' setting
+
+    # Calculate density for the first boundary (Inlet)
+    # rho = p / (R * T)
+    p_inlet = data['boundaries']['p'][0]
+    t_inlet = data['boundaries']['T'][0]
+    r_gas   = fluid['R']
+    
+    rho_inlet = p_inlet / (r_gas * t_inlet)
+    print(f"Calculated Inlet Density: {rho_inlet:.4f} kg/m^3")
+    
 
     # 2. Mesh Generation
     mesh = MeshGenerator(data, smoother=distmesh_smoother)
