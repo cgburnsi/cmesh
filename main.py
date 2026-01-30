@@ -15,14 +15,18 @@ if __name__ == '__main__':
     data = input_reader('geom1.inp')
     calc_mode = data['settings'].get('mode', 'axisymmetric')
     FVMReporter.sys_init(calc_mode, data)
-    fluid = data['fluids'].get('air') # Or pull from a 'active_fluid' setting
-
-    # Calculate density for the first boundary (Inlet)
-    # rho = p / (R * T)
+   
+    # 1. Access Fluid Properties
+    # Assuming 'air' is your active fluid for this run
+    fluid = data['fluids'].get('air')
+    r_gas = fluid['R'] if fluid else 287.05
+    
+    # 2. Extract BC values specifically from the 'T' field
+    bc_values = {row['id']: row['T'] for row in data['boundaries']}
+    
+    # 3. Calculate Inlet Density for Diagnostic (Optional)
     p_inlet = data['boundaries']['p'][0]
     t_inlet = data['boundaries']['T'][0]
-    r_gas   = fluid['R']
-    
     rho_inlet = p_inlet / (r_gas * t_inlet)
     print(f"Calculated Inlet Density: {rho_inlet:.4f} kg/m^3")
     
