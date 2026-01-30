@@ -2,128 +2,70 @@
 import numpy as np
 
 def get_closest_point_on_segment(px, py, x1, y1, x2, y2):
-    """
-    Vectorized kernel to find the closest point on segment P1-P2 for point P.
-    
-    Args:
-        px, py: Coordinates of point P (N, 1) or (N, M)
-        x1, y1: Coordinates of start node P1 (1, M)
-        x2, y2: Coordinates of end node P2 (1, M)
-        
-    Returns:
-        cx, cy: Coordinates of the closest point on the segment
-    """
-    # Vector from StartNode to Point (P - P1)
-    dx = px - x1
-    dy = py - y1
-    
-    # Vector of the Segment (P2 - P1)
-    vx = x2 - x1
-    vy = y2 - y1
-    
-    # Squared length of the segment
-    len_sq = vx**2 + vy**2
-    
-    # Avoid division by zero for zero-length segments
-    len_sq = np.where(len_sq == 0, 1.0, len_sq)
-    
-    # Project vector 'd' onto vector 'v'
-    # t = (d . v) / (v . v)
-    t = (dx * vx + dy * vy) / len_sq
-    
-    # Clamp t to the segment [0, 1]
-    t = np.clip(t, 0.0, 1.0)
-    
-    # Calculate closest point
-    cx = x1 + t * vx
-    cy = y1 + t * vy
-    
-    return cx, cy
+    """ Vectorized kernel to find the closest point on segment P1-P2 for point P. """
+    dx, dy = px - x1, py - y1
+    vx, vy = x2 - x1, y2 - y1
+    len_sq = np.where((vx**2 + vy**2) == 0, 1.0, vx**2 + vy**2)
+    t = np.clip((dx * vx + dy * vy) / len_sq, 0.0, 1.0)
+    return x1 + t * vx, y1 + t * vy
 
-def project_points_to_specific_faces(points, face_indices, nodes, faces):
-    """
-    Projects points[i] strictly to faces[face_indices[i]].
-    This prevents corner-rounding and drifting by locking nodes to specific topology.
-    """
-    # 1. Gather Face Data for each point
-    relevant_faces = faces[face_indices]
+def get_closest_point_on_arc(px, py, cx, cy, R, theta1, theta2):
+    """ Finds the closest point on a circular arc defined by a center and radius. """
+    dx, dy = px - cx, py - cy
+    dist = np.maximum(np.sqrt(dx**2 + dy**2), 1e-12)
     
-    idx_n1 = relevant_faces['n1'] - 1
-    idx_n2 = relevant_faces['n2'] - 1
+    # Project to the infinite circle
+    nx, ny = cx + R * (dx / dist), cy + R * (dy / dist)
     
-    x1 = nodes['x'][idx_n1]
-    y1 = nodes['y'][idx_n1]
-    x2 = nodes['x'][idx_n2]
-    y2 = nodes['y'][idx_n2]
+    # Angular clamping to the arc segment
+    angle = np.arctan2(ny - cy, nx - cx)
     
-    # 2. Vectorized Projection
-    px, py = points[:, 0], points[:, 1]
+    # Adjust for shortest angular path
+    def normalize_angle(a, target):
+        while a < target - np.pi: a += 2*np.pi
+        while a > target + np.pi: a -= 2*np.pi
+        return a
+
+    theta2_adj = normalize_angle(theta2, theta1)
+    angle_adj = normalize_angle(angle, theta1)
     
-    # Vector from StartNode to Point
-    dx = px - x1
-    dy = py - y1
+    # Clamp angle between theta1 and theta2_adj
+    start, end = (theta1, theta2_adj) if theta1 < theta2_adj else (theta2_adj, theta1)
+    clamped_angle = np.clip(angle_adj, start, end)
     
-    # Vector of the Wall Segment
-    vx = x2 - x1
-    vy = y2 - y1
+    return cx + R * np.cos(clamped_angle), cy + R * np.sin(clamped_angle)
+
+def project_points_to_specific_faces(points, face_indices, nodes, faces, constraints=None):
+    """ Projects points strictly to assigned faces, supporting arcs. """
+    constraint_map = {c['target']: c for c in constraints if c['target'] > 0} if constraints is not None else {}
+    new_pts = np.zeros_like(points)
     
-    # Project: t = (v . d) / (v . v)
-    v_sq = vx**2 + vy**2
-    v_dot_d = vx*dx + vy*dy
-    
-    # Avoid div/0
-    v_sq = np.maximum(v_sq, 1e-12)
-    
-    t = v_dot_d / v_sq
-    
-    # 3. Clamp t to [0, 1] - Hard Stop at corners
-    t = np.clip(t, 0.0, 1.0)
-    
-    # 4. Calculate new position
-    nearest_x = x1 + t * vx
-    nearest_y = y1 + t * vy
-    
-    return np.column_stack((nearest_x, nearest_y))
+    for i, f_idx in enumerate(face_indices):
+        face = faces[f_idx]
+        n1, n2 = nodes[face['n1']-1], nodes[face['n2']-1]
+        x1, y1, x2, y2 = n1['x'], n1['y'], n2['x'], n2['y']
+        
+        const = constraint_map.get(face['id'])
+        if const is not None and const['type'] == 2: # Circle/Arc
+            cx, cy, R = const['p1'], const['p2'], const['p3']
+            t1, t2 = np.arctan2(y1 - cy, x1 - cx), np.arctan2(y2 - cy, x2 - cx)
+            new_pts[i] = get_closest_point_on_arc(points[i, 0], points[i, 1], cx, cy, R, t1, t2)
+        else: # Default Line
+            new_pts[i, 0], new_pts[i, 1] = get_closest_point_on_segment(points[i, 0], points[i, 1], x1, y1, x2, y2)
+            
+    return new_pts
 
 def project_points_to_boundary(points, nodes, faces):
-    """
-    Finds the closest point on ANY boundary face for a list of points.
-    Used for "leaker" checks (points that escaped the domain).
-    """
-    # 1. Prepare Data
-    # Points: Shape (N, 1) for broadcasting
-    px = points[:, 0][:, np.newaxis]
-    py = points[:, 1][:, np.newaxis]
+    """ Finds the closest point on ANY boundary face for a list of points. """
+    px, py = points[:, 0][:, np.newaxis], points[:, 1][:, np.newaxis]
+    idx_n1, idx_n2 = faces['n1'] - 1, faces['n2'] - 1
+    x1, y1 = nodes['x'][idx_n1][np.newaxis, :], nodes['y'][idx_n1][np.newaxis, :]
+    x2, y2 = nodes['x'][idx_n2][np.newaxis, :], nodes['y'][idx_n2][np.newaxis, :]
     
-    # Faces: Shape (1, M) for broadcasting
-    idx_n1 = faces['n1'] - 1
-    idx_n2 = faces['n2'] - 1
-    
-    x1 = nodes['x'][idx_n1][np.newaxis, :]
-    y1 = nodes['y'][idx_n1][np.newaxis, :]
-    x2 = nodes['x'][idx_n2][np.newaxis, :]
-    y2 = nodes['y'][idx_n2][np.newaxis, :]
-    
-    # 2. Run Kernel (N points vs M faces) -> Result (N, M)
-    #    This gives us the closest point on *every* face for *every* point.
     cx_all, cy_all = get_closest_point_on_segment(px, py, x1, y1, x2, y2)
-    
-    # 3. Calculate Distances Squared (N, M)
-    dx = px - cx_all
-    dy = py - cy_all
-    dists_sq = dx**2 + dy**2
-    
-    # 4. Find the Minimum Distance Index for each point
+    dists_sq = (px - cx_all)**2 + (py - cy_all)**2
     min_indices = np.argmin(dists_sq, axis=1)
     
-    # 5. Extract the coordinates corresponding to the minimum distance
-    #    We use numpy's advanced indexing: range(N) selects the row, min_indices selects the col
-    row_indices = np.arange(len(points))
-    
-    best_x = cx_all[row_indices, min_indices]
-    best_y = cy_all[row_indices, min_indices]
-    
-    closest_points = np.column_stack((best_x, best_y))
-    min_dists = np.sqrt(dists_sq[row_indices, min_indices])
-    
-    return min_dists, closest_points
+    rows = np.arange(len(points))
+    best_x, best_y = cx_all[rows, min_indices], cy_all[rows, min_indices]
+    return np.sqrt(dists_sq[rows, min_indices]), np.column_stack((best_x, best_y))

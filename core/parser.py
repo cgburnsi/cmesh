@@ -145,10 +145,17 @@ class Parser:
         nid = self.expect_int(); x = self.expect_float(); y = self.expect_float()
         self.data['nodes'].append((nid, x, y))
 
+
     def parse_faces(self):
-        fid = self.expect_int(); n1 = self.expect_int(); n2 = self.expect_int()
-        tag = self.expect_int(); segs = self.expect_int() 
-        self.data['faces'].append((fid, n1, n2, tag, segs))
+        """ Parses: ID n1 n2 BC_Tag C_Tag Segments """
+        fid  = self.expect_int()
+        n1, n2 = self.expect_int(), self.expect_int()
+        tag  = self.expect_int()
+        ctag = self.expect_int() # Read the new Constraint Tag
+        segs = self.expect_int() 
+        self.data['faces'].append((fid, n1, n2, tag, ctag, segs))
+
+
 
     def parse_boundaries(self):
         """ 
@@ -168,10 +175,26 @@ class Parser:
         # Append 7-element tuple matching BC_DTYPE: (id, type, rho, u, v, p, T)
         self.data['boundaries'].append((bid, btype, 0.0, u, v, p, T))
 
+
+
     def parse_constraints(self):
-        cid = self.expect_int(); ctype = self.expect_enum(self.constraint_types, 1) 
-        p1 = self.expect_float(); p2 = self.expect_float(); p3 = self.expect_float()
-        self.data['constraints'].append((cid, ctype, 0, p1, p2, p3))
+        """ Parses a geometry entity with up to 5 parameters """
+        cid   = self.expect_int()
+        ctype_str = self.expect_choice(['fixed', 'line', 'circle', 'arc'])
+        ctype = self.constraint_types.get(ctype_str, 1)
+        
+        # Read the rest of the line as floats until the next ID or Section
+        params = []
+        while self.checkToken(TokenType.NUMBER):
+            params.append(self.expect_float())
+        
+        # Pad with zeros to fit the 5-parameter DTYPE
+        while len(params) < 5:
+            params.append(0.0)
+            
+        self.data['constraints'].append((cid, ctype, *params[:5]))
+
+
 
     def parse_fields(self):
         sid = self.expect_int(); stype = self.expect_enum(self.field_types, 0)

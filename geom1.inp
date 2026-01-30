@@ -5,17 +5,19 @@ mode    axisymmetric
 # Name      Gas_Constant(R)   Gamma
 air         287.05            1.4
 
-
 [nodes]
-1   0.0   0.0
-2   0.0   2.0
-3   1.0   2.0
-4   2.0   1.0
-5   3.0   2.0
-6   3.0   0.0
+# ID    X       Y
+1       0.0     0.0
+2       0.0     2.0
+3       1.0     2.0
+4       2.0     1.0
+5       3.0     2.0
+6       3.0     0.0
 
 [constraints]
-1      line     0.0     0.0     0.0
+# ID    Type    P1(CX)  P2(CY)  P3(R)   P4      P5
+1       line    0.0     0.0     0.0     0.0     0.0
+2       circle  1.0     1.5     0.5     0.0     0.0 
 
 [boundaries]
 # ID   Type        u(axial)   v(radial)   p(Pascal)   T(Kelvin)
@@ -29,13 +31,15 @@ air         287.05            1.4
 2      global    0.0     0.0     0.0     0.0     0.20
 
 [faces]
-# ID   N1   N2   Tag   Segments
-1      1    2    1     8     # Left Wall (Hot Inlet)
-2      2    3    2     4     # Top Wall (Cold)
-3      3    4    2     6     # Cutout Slope 1 (Cold)
-4      4    5    2     6     # Cutout Slope 2 (Cold)
-5      5    6    3     8     # Right Wall (Outlet)
-6      6    1    4     12    # Bottom Wall (Cold)
+# ID   Node 1   Node 2  BC_Tag  C_Tag   Segments
+1      1        2       1       1       8     # Left Wall (Hot Inlet)
+2      2        3       2       1       4     # Top Wall (Cold)
+3      3        4       2       1       6     # Cutout Slope 1 (Cold)
+4      4        5       2       1       6     # Cutout Slope 2 (Cold)
+5      5        6       3       1       8     # Right Wall (Outlet)
+6      6        1       4       1       12    # Bottom Wall (Cold)
 
 [cells]
+
+ 
 

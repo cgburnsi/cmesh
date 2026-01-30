@@ -35,7 +35,8 @@ FACE_DTYPE = np.dtype([
     ('id',  'i4'),      # Unique Face Identifier
     ('n1',  'i4'),      # Start Node ID
     ('n2',  'i4'),      # End Node ID
-    ('tag', 'i4'),      # Boundary Condition Tag (e.g., 1=Wall, 2=Inlet)
+    ('tag', 'i4'),      # Boundary Condition Tag
+    ('ctag', 'i4'),     # Constraint Tag (0 = Straight Line)
     ('segments', 'i4')  # LOCKED COUNT: The exact number of edges to generate 
                         # on this face. If > 0, the boundary is "locked".
 ])
@@ -56,11 +57,14 @@ CELL_DTYPE = np.dtype([
 CONSTRAINT_DTYPE = np.dtype([
     ('id', 'i4'),       # Constraint ID
     ('type', 'i4'),     # Type Marker: 1=Line, 2=Circle/Arc
-    ('target', 'i4'),   # The Face ID this constraint applies to (0 = Global)
     ('p1', 'f8'),       # Parameter 1 (e.g., Center X or Line Start)
     ('p2', 'f8'),       # Parameter 2 (e.g., Center Y or Line End)
-    ('p3', 'f8')        # Parameter 3 (e.g., Radius or ignored)
+    ('p3', 'f8'),       # Parameter 3 (e.g., Radius or ignored)
+    ('p4', 'f8'),       # Parameter 3 (e.g., Radius or ignored)
+    ('p5', 'f8')        # Parameter 3 (e.g., Radius or ignored)
+
 ])
+
 
 BC_DTYPE = np.dtype([
     ('id', 'i4'),       # Boundary Tag ID
@@ -70,7 +74,7 @@ BC_DTYPE = np.dtype([
     ('rho', 'f8'),      
     ('u',   'f8'),      
     ('v',   'f8'),      
-    ('p',   'f8') ,
+    ('p',   'f8'),
     ('T',   'f8')       # Added T for BC convenience
       
 ])
