@@ -44,7 +44,7 @@ if __name__ == '__main__':
     # 4. Phase 2 Setup: Dynamic Velocity Field
     # Pull global constant velocity from the first boundary entry (Inlet)
     u_init = data['boundaries']['u'][0]
-    v_init = data['boundaries']['v_vel'][0]
+    v_init = data['boundaries']['v'][0]
     
     u_field = np.zeros((len(face_areas), 2))
     u_field[:, 0] = u_init 

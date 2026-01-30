@@ -134,18 +134,12 @@ class Parser:
             self.data['settings'][key] = val
         
     def parse_fluids(self):
-        """ Parses fluid names and their thermodynamic constants. """
+        """ Parses fluid name, gas constant (R), and gamma. """
         fluid_name = self.curToken.text.lower()
         self.match(TokenType.IDENTIFIER)
-        
-        # Expecting: gas_constant gamma
         r_gas = self.expect_float()
         gamma = self.expect_float()
-        
-        self.data['fluids'][fluid_name] = {
-            "R": r_gas,
-            "gamma": gamma
-        }
+        self.data['fluids'][fluid_name] = {"R": r_gas, "gamma": gamma}
         
     def parse_nodes(self):
         nid = self.expect_int(); x = self.expect_float(); y = self.expect_float()
@@ -158,21 +152,21 @@ class Parser:
 
     def parse_boundaries(self):
         """ 
-        Parses the full set of primitives (rho, u, v, p, T) for each boundary tag. 
+        Parses boundary primitives (u, v, p, T). 
+        Density (rho) is set to 0.0 as a placeholder to match BC_DTYPE.
         """
         bid   = self.expect_int()
         b_raw = self.expect_choice(['dirichlet', 'neumann'])
         btype = self.bc_types.get(b_raw, 1)
         
-        # Sequentially extract the 5 primitive variables required by BC_DTYPE
-        rho = self.expect_float() # Density
+        # Sequentially extract the 4 primitives required by the updated format
         u   = self.expect_float() # Axial Velocity
         v   = self.expect_float() # Radial Velocity
         p   = self.expect_float() # Pressure
         T   = self.expect_float() # Temperature
                 
-        # Append as a 7-element tuple matching the new BC_DTYPE layout
-        self.data['boundaries'].append((bid, btype, rho, u, v, p, T))
+        # Append 7-element tuple matching BC_DTYPE: (id, type, rho, u, v, p, T)
+        self.data['boundaries'].append((bid, btype, 0.0, u, v, p, T))
 
     def parse_constraints(self):
         cid = self.expect_int(); ctype = self.expect_enum(self.constraint_types, 1) 
