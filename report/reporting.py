@@ -29,14 +29,13 @@ class FVMReporter:
         print(f"  - Boundary Faces:   {boundary}")
 
     @staticmethod
-    def residual_report(step, residuals):
+    def residual_report(step, residuals, dt, max_mach):
         """ 
-        Reports the L2-norm of the residuals to monitor convergence.
-        In FVM, this is the net flux sum for each cell.
+        Reports convergence, current time-step, and max Mach number.
         """
         l2_norm = np.sqrt(np.mean(residuals**2))
         if step % 500 == 0:
-            print(f"  > Step {step:6d} | Residual L2 Norm: {l2_norm:.6e}")
+            print(f"  > Step {step:6d} | Res: {l2_norm:.4e} | dt: {dt:.3e} | Max Mach: {max_mach:.3f}")
         return l2_norm
 
     @staticmethod
