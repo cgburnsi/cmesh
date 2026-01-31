@@ -4,69 +4,49 @@ from .containment import check_points_inside
 
 def resample_boundary_points(nodes, faces, sizing_field, constraints=None):
     """
-    Distributes points along edges. 
-    If face['segments'] == 0, calculates count based on local SizingField.
+    Distributes points along edges based on the local SizingField. 
+    If face['segments'] == 0, calculates count automatically.
     """
     sliding_points = []
     sliding_face_ids = []
     
-    # 1. Build a lookup for constraints based on their ID (C_Tag)
-    constraint_map = {}
-    if constraints is not None:
-        for c in constraints:
-            if c['id'] > 0:
-                constraint_map[c['id']] = c
+    constraint_map = {c['id']: c for c in constraints} if constraints is not None else {}
     
     for i, face in enumerate(faces):
         idx1, idx2 = face['n1'] - 1, face['n2'] - 1
-        
         p1 = np.array([nodes['x'][idx1], nodes['y'][idx1]])
         p2 = np.array([nodes['x'][idx2], nodes['y'][idx2]])
         
         # --- Sizing-Driven Segment Calculation ---
         n_segments = face['segments']
-        
         if n_segments <= 0:
-            # Determine length of the face segment
             length = np.linalg.norm(p2 - p1)
-            # Query sizing field at the midpoint for target 'h'
-            midpoint = (p1 + p2) / 2.0
-            h_target = sizing_field(midpoint) 
+            # Query sizing field at midpoint for target 'h'
+            h_target = sizing_field((p1 + p2) / 2.0) 
             n_segments = int(np.ceil(length / h_target))
-            # Ensure at least one segment exists
             n_segments = max(n_segments, 1)
 
         if n_segments <= 1: 
             continue 
         
-        # 2. Look up the constraint using the face's 'ctag'
         const = constraint_map.get(face['ctag'])
         is_arc = (const is not None and const['type'] == 2)
-        
-        n_samples = 100
-        t_samples = np.linspace(0, 1, n_samples)
+        t_samples = np.linspace(0, 1, 100)
         
         if is_arc:
-            # Arc logic: Interpolate angles around the center defined in params p1, p2, p3
             cx, cy, R = const['p1'], const['p2'], const['p3']
             theta1 = np.arctan2(p1[1] - cy, p1[0] - cx)
             theta2 = np.arctan2(p2[1] - cy, p2[0] - cx)
-            
-            # Shortest path logic to ensure the arc doesn't wrap the long way around
             d_theta = theta2 - theta1
             if d_theta > np.pi: d_theta -= 2.0 * np.pi
             if d_theta < -np.pi: d_theta += 2.0 * np.pi
             
             theta_samples = theta1 + t_samples * d_theta
-            sample_pts = np.column_stack((
-                cx + R * np.cos(theta_samples),
-                cy + R * np.sin(theta_samples)
-            ))
+            sample_pts = np.column_stack((cx + R * np.cos(theta_samples), cy + R * np.sin(theta_samples)))
         else:
-            # Linear logic (C_Tag 0 or Line constraint)
             sample_pts = p1 + (p2 - p1) * t_samples[:, np.newaxis]
         
-        # 3. Re-map 't' based on sizing field density for adaptive boundary spacing
+        # Map 't' based on sizing field density for adaptive boundary spacing
         h_vals = sizing_field(sample_pts)
         density = 1.0 / np.maximum(h_vals, 1e-6)
         cumulative = np.cumsum(density)
@@ -86,37 +66,32 @@ def resample_boundary_points(nodes, faces, sizing_field, constraints=None):
             
     return np.array(sliding_points), np.array(sliding_face_ids)
 
-
-def generate_inner_points(nodes, hf_segments, sizing_func):
+def generate_frontal_points(sliding_pts, sliding_face_ids, nodes, faces, sizing_field, hf_segments):
     """
-    Generates internal points using Rejection Sampling.
-    Uses hf_segments for accurate containment near curved boundaries.
+    Generates points offset from the boundary along inward normals.
+    Uses a probe check to ensure points are generated inside the domain.
     """
-    min_x, max_x = np.min(nodes['x']), np.max(nodes['x'])
-    min_y, max_y = np.min(nodes['y']), np.max(nodes['y'])
-    
-    if min_x == max_x and min_y == max_y:
+    if len(sliding_pts) == 0:
         return np.empty((0, 2))
-
-    # Determine h_min for sampling density
-    test_pts = np.random.rand(100, 2) * [max_x-min_x, max_y-min_y] + [min_x, min_y]
-    h_vals = sizing_func(test_pts)
-    h_min = np.min(h_vals)
-    
-    # Estimate candidate count based on area
-    area = (max_x - min_x) * (max_y - min_y)
-    n_estimated = int(area / (h_min**2 * np.sqrt(3)/2) * 2.0)
-    
-    candidates = np.random.rand(n_estimated, 2)
-    candidates[:,0] = candidates[:,0] * (max_x - min_x) + min_x
-    candidates[:,1] = candidates[:,1] * (max_y - min_y) + min_y
-    
-    h_local = sizing_func(candidates)
-    probs = (h_min / h_local)**2
-    
-    dice = np.random.rand(len(candidates))
-    points = candidates[dice < probs]
-    
-    # Use hf_segments for the high-fidelity check
-    mask = check_points_inside(points, hf_segments)
-    return points[mask]
+        
+    frontal_pts = []
+    for i, p in enumerate(sliding_pts):
+        f_idx = sliding_face_ids[i]
+        face = faces[f_idx]
+        
+        n1, n2 = nodes[face['n1']-1], nodes[face['n2']-1]
+        dx, dy = n2['x'] - n1['x'], n2['y'] - n1['y']
+        mag = np.sqrt(dx**2 + dy**2)
+        
+        # Initial candidate normal
+        nx, ny = -dy/mag, dx/mag 
+        h = sizing_field(p)
+        
+        # Direction Check: Test if candidate points 'In'
+        probe = p + np.array([nx, ny]) * (h * 0.1)
+        if not check_points_inside(np.atleast_2d(probe), hf_segments)[0]:
+            nx, ny = -nx, -ny # Flip normal to point inward
+            
+        frontal_pts.append(p + np.array([nx, ny]) * h)
+        
+    return np.array(frontal_pts)

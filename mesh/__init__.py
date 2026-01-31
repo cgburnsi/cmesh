@@ -5,7 +5,6 @@ from .geometry import compute_face_metrics, compute_triangle_quality
 # Initialization tools
 from .initialization import (
     resample_boundary_points, 
-    generate_inner_points
 )
 
 # Solver tools
