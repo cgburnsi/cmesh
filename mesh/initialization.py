@@ -73,26 +73,25 @@ def resample_boundary_points(nodes, faces, sizing_field, constraints=None):
             
     return np.array(sliding_points), np.array(sliding_face_ids)
 
-# ... generate_inner_points remains unchanged
 
 
-def generate_inner_points(nodes, faces, sizing_func):
+def generate_inner_points(nodes, hf_segments, sizing_func):
     """
     Generates internal points using Rejection Sampling.
+    Uses hf_segments for accurate containment near curved boundaries.
     """
     min_x, max_x = np.min(nodes['x']), np.max(nodes['x'])
     min_y, max_y = np.min(nodes['y']), np.max(nodes['y'])
     
-    # Check for empty nodes to avoid the ValueError
     if min_x == max_x and min_y == max_y:
         return np.empty((0, 2))
 
-    # Determine h_min
+    # Determine h_min for sampling density
     test_pts = np.random.rand(100, 2) * [max_x-min_x, max_y-min_y] + [min_x, min_y]
     h_vals = sizing_func(test_pts)
     h_min = np.min(h_vals)
     
-    # Estimate count
+    # Estimate candidate count based on area
     area = (max_x - min_x) * (max_y - min_y)
     n_estimated = int(area / (h_min**2 * np.sqrt(3)/2) * 2.0)
     
@@ -106,5 +105,6 @@ def generate_inner_points(nodes, faces, sizing_func):
     dice = np.random.rand(len(candidates))
     points = candidates[dice < probs]
     
-    mask = check_points_inside(points, nodes, faces)
+    # FIX: Use the 2-argument call for the new high-fidelity check
+    mask = check_points_inside(points, hf_segments)
     return points[mask]

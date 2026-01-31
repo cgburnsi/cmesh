@@ -9,7 +9,7 @@ def get_unique_edges(simplices):
     edges.sort(axis=1)
     return np.unique(edges, axis=0)
 
-def spring_smoother(points, nodes, faces, n_sliding, sliding_face_indices, sizing_func, niters=100, constraints=None):
+def spring_smoother(points, nodes, faces, n_sliding, sliding_face_indices, sizing_func, niters=100, constraints=None, hf_segments=None):
     n_fixed = len(nodes)
     slide_start, slide_end = n_fixed, n_fixed + n_sliding
     dt, retriangulate_interval = 0.2, 5 
@@ -18,7 +18,8 @@ def spring_smoother(points, nodes, faces, n_sliding, sliding_face_indices, sizin
     for itr in range(niters):
         if itr % retriangulate_interval == 0:
             tri = Delaunay(points)
-            mask = check_points_inside(np.mean(points[tri.simplices], axis=1), nodes, faces)
+            # FIX: Use the 2-argument call with hf_segments
+            mask = check_points_inside(np.mean(points[tri.simplices], axis=1), hf_segments)
             current_simplices = tri.simplices[mask]
             
         edges = get_unique_edges(current_simplices)
@@ -49,7 +50,7 @@ def spring_smoother(points, nodes, faces, n_sliding, sliding_face_indices, sizin
             )
     return points
 
-def distmesh_smoother(points, nodes, faces, n_sliding, sliding_face_indices, sizing_func, niters=100, constraints=None):
+def distmesh_smoother(points, nodes, faces, n_sliding, sliding_face_indices, sizing_func, niters=100, constraints=None, hf_segments=None):
     n_fixed = len(nodes)
     slide_start, slide_end = n_fixed, n_fixed + n_sliding
     dt, retriangulate_interval = 0.2, 5
@@ -58,7 +59,8 @@ def distmesh_smoother(points, nodes, faces, n_sliding, sliding_face_indices, siz
     for itr in range(niters):
         if itr % retriangulate_interval == 0:
             tri = Delaunay(points)
-            mask = check_points_inside(np.mean(points[tri.simplices], axis=1), nodes, faces)
+            # FIX: Use the 2-argument call with hf_segments
+            mask = check_points_inside(np.mean(points[tri.simplices], axis=1), hf_segments)
             current_simplices = tri.simplices[mask]
 
         edges = get_unique_edges(current_simplices)
