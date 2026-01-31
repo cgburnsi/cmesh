@@ -66,10 +66,12 @@ def resample_boundary_points(nodes, faces, sizing_field, constraints=None):
             
     return np.array(sliding_points), np.array(sliding_face_ids)
 
+       
+
 def generate_frontal_points(sliding_pts, sliding_face_ids, nodes, faces, sizing_field, hf_segments):
     """
-    Generates points offset from the boundary along inward normals.
-    Uses a probe check to ensure points are generated inside the domain.
+    Generates points offset from boundaries. 
+    UPDATED: Skips non-wall boundaries to prevent centerline clutter.
     """
     if len(sliding_pts) == 0:
         return np.empty((0, 2))
@@ -79,18 +81,20 @@ def generate_frontal_points(sliding_pts, sliding_face_ids, nodes, faces, sizing_
         f_idx = sliding_face_ids[i]
         face = faces[f_idx]
         
+        # --- FIX: Only generate layers for Physical Walls (Tag 2) ---
+        if face['tag'] != 2:
+            continue
+            
         n1, n2 = nodes[face['n1']-1], nodes[face['n2']-1]
         dx, dy = n2['x'] - n1['x'], n2['y'] - n1['y']
         mag = np.sqrt(dx**2 + dy**2)
         
-        # Initial candidate normal
         nx, ny = -dy/mag, dx/mag 
         h = sizing_field(p)
         
-        # Direction Check: Test if candidate points 'In'
         probe = p + np.array([nx, ny]) * (h * 0.1)
         if not check_points_inside(np.atleast_2d(probe), hf_segments)[0]:
-            nx, ny = -nx, -ny # Flip normal to point inward
+            nx, ny = -nx, -ny 
             
         frontal_pts.append(p + np.array([nx, ny]) * h)
         

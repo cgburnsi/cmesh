@@ -58,7 +58,6 @@ class MeshGenerator:
             active_simplices = tri.simplices[inside_mask]
             active_centroids = centroids[inside_mask]
             
-            # Area-based refinement logic: identify large triangles
             p1, p2, p3 = points[active_simplices[:,0]], points[active_simplices[:,1]], points[active_simplices[:,2]]
             area = 0.5 * np.abs(p1[:,0]*(p2[:,1]-p3[:,1]) + p2[:,0]*(p3[:,1]-p1[:,1]) + p3[:,0]*(p1[:,1]-p2[:,1]))
             
@@ -70,10 +69,10 @@ class MeshGenerator:
                 
             points = np.vstack((points, active_centroids[refine_mask]))
             
-            # Intermediate smoothing iterations
+            # Intermediate smoothing: Reduced from 50 to 20 for stability
             points = self.smoother(
                 points, self.nodes_in, self.faces_in, n_sliding, sliding_face_ids, 
-                self.field, niters=50, constraints=self.constraints_in, hf_segments=hf_segments
+                self.field, niters=20, constraints=self.constraints_in, hf_segments=hf_segments
             )
 
         # 4. Final smoothing pass
@@ -82,7 +81,6 @@ class MeshGenerator:
             self.field, niters=niters, constraints=self.constraints_in, hf_segments=hf_segments
         )
         
-        # Final triangulation and cell selection
         tri_final = Delaunay(final_points)
         c_final = np.mean(final_points[tri_final.simplices], axis=1)
         final_cells = tri_final.simplices[check_points_inside(c_final, hf_segments)]
