@@ -23,7 +23,7 @@ air         287.05            1.4
 
 [boundaries]
 # ID   Type        u(axial)   v(radial)   p(Pascal)   T(Kelvin)
-1      dirichlet   0.0        0.0         482633.0    299.8     # Stagnation Inlet
+1      dirichlet   8.0        0.0         482633.0    299.8     # Stagnation Inlet
 2      dirichlet   0.0        0.0         482633.0    300.0     # No-Slip Wall
 3      dirichlet   0.0        0.0         101325.0    250.0     # Supersonic Outlet
 4      neumann     0.0        0.0         0.0         0.0       # Axis of Symmetry
@@ -31,7 +31,7 @@ air         287.05            1.4
 [fields]
 # ID   Type      x1    y1    x2    y2    Value(h)
 2      global    0.0   0.0   0.0   0.0   0.005
-#3      box       0.04  0.0   0.08  0.04  0.001       # Refinement near throat
+3      box       0.05  0.0   0.07  0.03  0.001       # Refinement near throat
 
 [faces]
 # ID   Node1  Node2  BC_Tag  C_Tag  Segments
