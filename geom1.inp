@@ -6,40 +6,39 @@ mode    axisymmetric
 air         287.05            1.4
 
 [nodes]
-# ID    X       Y
-1       0.0     0.0
-2       0.0     2.0
-3       1.0     2.0
-4       2.0     1.0
-5       3.0     2.0
-6       3.0     0.0
+# ID    X           Y (Radius)
+1       0.007874    0.000000   # Inlet Centerline Start
+2       0.007874    0.063500   # Inlet Wall Start
+3       0.022212    0.057577   # Inlet Tangent Point (xtan, rtan)
+4       0.055907    0.024021   # Throat Approach Tangent (xt1, rt1)
+5       0.068155    0.020753   # Throat Exit Tangent (xt2, rt2)
+6       0.102870    0.030053   # Nozzle Exit Wall (xe, re)
+7       0.102870    0.000000   # Outlet Centerline End
 
 [constraints]
-# ID    Type    P1(CX)  P2(CY)  P3(R)   P4      P5
-1       line    0.0     0.0     0.0     0.0     0.0
-2       circle  1.0     1.5     0.5     0.0     0.0 
+# ID    Type     P1(CX)     P2(CY)     P3(R)      P4      P5
+1       line     0.0        0.0        0.0        0.0     0.0
+2       circle   0.007874   0.043180   0.020320   0.0     0.0   # Inlet Arc
+3       circle   0.064869   0.033020   0.012700   0.0     0.0   # Throat Arc
 
 [boundaries]
 # ID   Type        u(axial)   v(radial)   p(Pascal)   T(Kelvin)
-1      dirichlet   2.0        0.0         101325.0    800.0     # Inlet
-2      dirichlet   0.0        0.0         101325.0    500.0     # Wall (Top)
-3      dirichlet   0.0        0.0         50000.0     100.0     # Outlet
-4      neumann     0.0        0.0         0.0         0.0       # Axis/Insulated
+1      dirichlet   0.0        0.0         482633.0    299.8     # Stagnation Inlet
+2      dirichlet   0.0        0.0         482633.0    300.0     # No-Slip Wall
+3      dirichlet   0.0        0.0         101325.0    250.0     # Supersonic Outlet
+4      neumann     0.0        0.0         0.0         0.0       # Axis of Symmetry
 
 [fields]
-#1      box      1.9     0.0     2.1     2.0     0.05
-2      global    0.0     0.0     0.0     0.0     0.20
+# ID   Type      x1    y1    x2    y2    Value(h)
+2      global    0.0   0.0   0.0   0.0   0.003
+#3      box       0.04  0.0   0.08  0.04  0.001       # Refinement near throat
 
 [faces]
-# ID   Node 1   Node 2  BC_Tag  C_Tag   Segments
-1      1        2       1       2       8     # Left Wall (Hot Inlet)
-2      2        3       2       1       4     # Top Wall (Cold)
-3      3        4       2       1       6     # Cutout Slope 1 (Cold)
-4      4        5       2       1       6     # Cutout Slope 2 (Cold)
-5      5        6       3       1       8     # Right Wall (Outlet)
-6      6        1       4       1       12    # Bottom Wall (Cold)
-
-[cells]
-
- 
-
+# ID   Node1  Node2  BC_Tag  C_Tag  Segments
+1      1      2      1       1      10    # Inlet
+2      2      3      2       2      12    # Inlet Arc (C_Tag 2)
+3      3      4      2       1      15    # Convergent Cone (Line)
+4      4      5      2       3      15    # Throat Arc (C_Tag 3)
+5      5      6      2       1      20    # Divergent Cone (Line)
+6      6      7      3       1      10    # Outlet
+7      7      1      4       1      35    # Symmetry Axis

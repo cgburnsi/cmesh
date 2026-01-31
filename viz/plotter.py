@@ -4,7 +4,6 @@ import numpy as np
 
 class MeshPlotter:
     def __init__(self, points=None, cells=None, arrays=None):
-        # Support both the old dictionary style and direct array passing
         if arrays is not None:
             self.xv = arrays['xv']
             self.yv = arrays['yv']
@@ -19,12 +18,27 @@ class MeshPlotter:
         self.ax.set_title("Generated Mesh")
 
     def plot_edges(self, color='k', linewidth=0.5):
-        """ Plots the wireframe. """
+        """ Plots the wireframe of the generated mesh. """
         self.ax.triplot(self.xv, self.yv, self.lcv, color=color, lw=linewidth)
 
     def plot_nodes(self, color='k', size=2):
-        """ Plots the vertices. """
+        """ Plots the vertices of the generated mesh. """
         self.ax.scatter(self.xv, self.yv, s=size, c=color)
+
+    def plot_geometry(self, nodes, color='red', marker='P', size=60, label_nodes=True):
+        """ 
+        Plots the original input geometry points.
+        'nodes' should be the structured array from data['nodes'].
+        """
+        self.ax.scatter(nodes['x'], nodes['y'], s=size, c=color, marker=marker, 
+                        label='Geometry Nodes', zorder=10)
+        
+        if label_nodes:
+            for node in nodes:
+                self.ax.text(node['x'], node['y'], f" {node['id']}", 
+                             color=color, fontsize=9, fontweight='bold',
+                             va='bottom', ha='left', zorder=11)
+        self.ax.legend()
 
     def show(self):
         plt.show()
@@ -34,12 +48,8 @@ class MeshPlotter:
         print(f"Plot saved to {filename}")
         
     def plot_scalar(self, points, cells, scalar, title="Temperature Field", cmap='viridis'):
-        """ 
-        Plots the scalar field. 
-        Recommended cmaps: 'magma', 'inferno', or 'viridis' for better clarity. 
-        """
         tpc = self.ax.tripcolor(points[:, 0], points[:, 1], cells, 
-                                facecolors=scalar, cmap=cmap, edgecolors='w', linewidth=0.1)
-        self.fig.colorbar(tpc, ax=self.ax, label='Temperature (K)')
+                                facecolors=scalar, cmap=cmap, edgecolors='none', alpha=0.9)
+        self.fig.colorbar(tpc, ax=self.ax, label='Value')
         self.ax.set_title(title)
         return tpc
