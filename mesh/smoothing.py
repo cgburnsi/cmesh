@@ -5,11 +5,13 @@ from .distance import project_points_to_specific_faces, project_points_to_bounda
 from .containment import check_points_inside
 
 def get_unique_edges(simplices):
+    """ Extracts unique edges from a set of simplices. """
     edges = np.vstack((simplices[:, [0, 1]], simplices[:, [1, 2]], simplices[:, [2, 0]]))
     edges.sort(axis=1)
     return np.unique(edges, axis=0)
 
 def spring_smoother(points, nodes, faces, n_sliding, sliding_face_indices, sizing_func, niters=100, constraints=None, hf_segments=None):
+    """ Standard spring-based smoother with axisymmetry constraints. """
     n_fixed = len(nodes)
     slide_start, slide_end = n_fixed, n_fixed + n_sliding
     dt, retriangulate_interval = 0.2, 5 
@@ -18,7 +20,6 @@ def spring_smoother(points, nodes, faces, n_sliding, sliding_face_indices, sizin
     for itr in range(niters):
         if itr % retriangulate_interval == 0:
             tri = Delaunay(points)
-            # FIX: Use the 2-argument call with hf_segments
             mask = check_points_inside(np.mean(points[tri.simplices], axis=1), hf_segments)
             current_simplices = tri.simplices[mask]
             
@@ -44,6 +45,10 @@ def spring_smoother(points, nodes, faces, n_sliding, sliding_face_indices, sizin
         scale = np.where(move_mags > limit, limit / (move_mags + 1e-12), 1.0)
         points[n_fixed:] += raw_move[n_fixed:] * scale[n_fixed:][:, np.newaxis]
         
+        # --- AXISYMMETRY CONSTRAINT ---
+        # Prevent interior points from drifting across the symmetry axis
+        points[n_fixed:, 1] = np.maximum(points[n_fixed:, 1], 1e-10)
+        
         if n_sliding > 0:
             points[slide_start : slide_end] = project_points_to_specific_faces(
                 points[slide_start : slide_end], sliding_face_indices, nodes, faces, constraints=constraints
@@ -51,6 +56,7 @@ def spring_smoother(points, nodes, faces, n_sliding, sliding_face_indices, sizin
     return points
 
 def distmesh_smoother(points, nodes, faces, n_sliding, sliding_face_indices, sizing_func, niters=100, constraints=None, hf_segments=None):
+    """ DistMesh-style smoother with axisymmetry constraints. """
     n_fixed = len(nodes)
     slide_start, slide_end = n_fixed, n_fixed + n_sliding
     dt, retriangulate_interval = 0.2, 5
@@ -59,7 +65,6 @@ def distmesh_smoother(points, nodes, faces, n_sliding, sliding_face_indices, siz
     for itr in range(niters):
         if itr % retriangulate_interval == 0:
             tri = Delaunay(points)
-            # FIX: Use the 2-argument call with hf_segments
             mask = check_points_inside(np.mean(points[tri.simplices], axis=1), hf_segments)
             current_simplices = tri.simplices[mask]
 
@@ -86,6 +91,10 @@ def distmesh_smoother(points, nodes, faces, n_sliding, sliding_face_indices, siz
         
         scale = np.where(move_mags > limit, limit / (move_mags + 1e-12), 1.0)
         points[n_fixed:] += raw_move[n_fixed:] * scale[n_fixed:][:, np.newaxis]
+
+        # --- AXISYMMETRY CONSTRAINT ---
+        # Ensure interior points stay above the centerline
+        points[n_fixed:, 1] = np.maximum(points[n_fixed:, 1], 1e-10)
 
         if n_sliding > 0:
             points[slide_start : slide_end] = project_points_to_specific_faces(

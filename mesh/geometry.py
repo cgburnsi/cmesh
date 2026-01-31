@@ -37,9 +37,11 @@ def compute_triangle_quality(points, simplices):
     denom = s * a * b * c
     return np.where(denom > 0, (8.0 * area**2) / denom, 0.0)
 
+
+
 def compute_cell_metrics(points, cells, mode='axisymmetric'):
     """ 
-    Calculates Volume and Centroid for every triangular cell.
+    Calculates Volume, Centroid, and Planar Area for every cell.
     - Planar: Volume = Area * 1.0
     - Axisymmetric: Volume = Area * 2 * pi * y_centroid
     """
@@ -49,7 +51,7 @@ def compute_cell_metrics(points, cells, mode='axisymmetric'):
     # 1. Standard Planar Area
     area = 0.5 * np.abs(A[:,0]*(B[:,1]-C[:,1]) + B[:,0]*(C[:,1]-A[:,1]) + C[:,0]*(A[:,1]-B[:,1]))
     
-    # 2. Centroid (Radius is the Y-coordinate)
+    # 2. Centroid
     centroid = (A + B + C) / 3.0
     y_centroid = centroid[:, 1]
     
@@ -57,9 +59,10 @@ def compute_cell_metrics(points, cells, mode='axisymmetric'):
     if mode == 'axisymmetric':
         volume = area * (2.0 * np.pi * y_centroid)
     else:
-        volume = area # Planar (unit depth)
+        volume = area 
     
-    return volume, centroid
+    return volume, centroid, area
+
 
 def compute_fvm_face_metrics(points, face_nodes, face_cells, cell_centroids, mode='axisymmetric'):
     """ 

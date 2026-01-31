@@ -18,7 +18,7 @@ if __name__ == '__main__':
     
     # 2. Mesh Generation
     mesh = MeshGenerator(data)
-    points, cells = mesh.generate(niters=300, n_layers=3)
+    points, cells = mesh.generate(niters=80, n_layers=3)
     _, q_stats = mesh.get_quality(points, cells)
 
     # 3. Solver Setup & Topology Diagnostics
