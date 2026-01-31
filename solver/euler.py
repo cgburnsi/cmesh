@@ -28,13 +28,15 @@ class EulerSolver:
         self.bc_groups = map_boundary_faces(points, self.face_nodes, self.face_cells, data['nodes'], data['faces'])
         self.bc_data = {row['id']: row for row in data['boundaries']}
         
-        # 2. State Initialization (Conserved Variables: rho, rhou, rhov, rhoE)
+        # 2. State Initialization (Conserved Variables)
         self.Q = np.zeros((len(cells), 4))
         self.max_mach = 0.0
 
     def initialize_field(self, rho, u, v, p):
         """ Sets a uniform initial state across the domain. """
-        rho, rhou, rhov, rhoE = prim_to_cons(rho, u, v, p, p/(rho*self.R), self.gamma, self.R)
+        # Calculate T for initial state consistency
+        T_init = p / (rho * self.R)
+        rho, rhou, rhov, rhoE = prim_to_cons(rho, u, v, p, T_init, self.gamma, self.R)
         self.Q[:, 0] = rho
         self.Q[:, 1] = rhou
         self.Q[:, 2] = rhov
@@ -42,14 +44,19 @@ class EulerSolver:
 
     def compute_time_step(self, cfl=0.5):
         """ Calculates global dt based on acoustic wave speeds. """
-        rho, u, v, p, T = cons_to_prim(self.Q[:,0], self.Q[:,1], self.Q[:,2], self.Q[:,3], self.gamma, self.R)
+        rho, rhou, rhov, rhoE = self.Q[:,0], self.Q[:,1], self.Q[:,2], self.Q[:,3]
+        _, u, v, p, T = cons_to_prim(rho, rhou, rhov, rhoE, self.gamma, self.R)
+        
         a = np.sqrt(self.gamma * self.R * T)
         vel = np.sqrt(u**2 + v**2)
         
-        # Calculate local dx based on planar area (sqrt(Area))
-        planar_area = self.cell_vols / (2.0 * np.pi * self.cell_centroids[:, 1] if self.mode == 'axisymmetric' else 1.0)
+        # Characteristic length dx (planar area approximation)
+        if self.mode == 'axisymmetric':
+            planar_area = self.cell_vols / (2.0 * np.pi * self.cell_centroids[:, 1] + 1e-12)
+        else:
+            planar_area = self.cell_vols
+            
         dx = np.sqrt(planar_area)
-        
         self.max_mach = np.max(vel / a)
         return np.min(cfl * dx / (vel + a))
 
@@ -57,23 +64,31 @@ class EulerSolver:
         """ Performs one time-step using Rusanov fluxes and source terms. """
         residuals = np.zeros_like(self.Q)
         
-        # A. Internal Face Fluxes
+        # A. Flux Assembly loop
         for f_idx in range(len(self.face_areas)):
             P, N = self.face_cells[f_idx]
             area = self.face_areas[f_idx]
             normal = self.face_normals[f_idx]
             
             if N != -1:
-                # Standard Internal Flux
+                # Internal Flux
                 flux = compute_rusanov_flux(self.Q[P], self.Q[N], normal, area, self.gamma, self.R)
                 residuals[P] -= flux
                 residuals[N] += flux
             else:
-                # B. Boundary Fluxes
+                # B. Boundary Fluxes with KeyError Protection
                 tag = -1
                 for b_tag, f_list in self.bc_groups.items():
-                    if f_idx in f_list: tag = b_tag; break
+                    if f_idx in f_list:
+                        tag = b_tag
+                        break
                 
+                # FALLBACK: If mapping fails, treat as Extrapolation (Neumann)
+                if tag == -1:
+                    flux = compute_rusanov_flux(self.Q[P], self.Q[P], normal, area, self.gamma, self.R)
+                    residuals[P] -= flux
+                    continue
+
                 bc = self.bc_data[tag]
                 if bc['type'] == 1: # Dirichlet (Stagnation Inlet or Wall)
                     rho_bc, rhou_bc, rhov_bc, rhoE_bc = prim_to_cons(
@@ -88,10 +103,11 @@ class EulerSolver:
 
         # C. Axisymmetric Source Term
         if self.mode == 'axisymmetric':
-            # Radial momentum source: p/r integrated over volume
-            _, _, _, p, _ = cons_to_prim(self.Q[:,0], self.Q[:,1], self.Q[:,2], self.Q[:,3], self.gamma, self.R)
-            # Source = [0, 0, P * Planar_Area * 2*pi, 0]
-            planar_area = self.cell_vols / (2.0 * np.pi * self.cell_centroids[:, 1])
+            # Radial momentum source term (P/r integrated over volume)
+            rho, rhou, rhov, rhoE = self.Q[:,0], self.Q[:,1], self.Q[:,2], self.Q[:,3]
+            _, _, _, p, _ = cons_to_prim(rho, rhou, rhov, rhoE, self.gamma, self.R)
+            
+            planar_area = self.cell_vols / (2.0 * np.pi * self.cell_centroids[:, 1] + 1e-12)
             residuals[:, 2] += p * (2.0 * np.pi * planar_area)
 
         # D. Update State
@@ -99,13 +115,13 @@ class EulerSolver:
         return np.sqrt(np.mean(residuals**2))
 
     def get_primitive(self, var='T'):
-        """ Returns requested primitive field for reporting or plotting. """
-        rho, u, v, p, T = cons_to_prim(self.Q[:,0], self.Q[:,1], self.Q[:,2], self.Q[:,3], self.gamma, self.R)
+        """ Returns requested field: rho, u, v, p, or T. """
+        rho, rhou, rhov, rhoE = self.Q[:,0], self.Q[:,1], self.Q[:,2], self.Q[:,3]
+        rho, u, v, p, T = cons_to_prim(rho, rhou, rhov, rhoE, self.gamma, self.R)
         mapping = {'rho': rho, 'u': u, 'v': v, 'p': p, 'T': T}
         return mapping.get(var, T)
 
     def plot_results(self, variable='p', title="Results"):
-        """ Direct visualization from the solver state. """
         field = self.get_primitive(variable)
         plotter = MeshPlotter(points=self.points, cells=self.cells)
         plotter.plot_scalar(self.points, self.cells, field, title=title)

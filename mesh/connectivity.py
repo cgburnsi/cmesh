@@ -56,43 +56,39 @@ def build_fvm_connectivity(cells):
 
 def map_boundary_faces(points, face_nodes, face_cells, input_nodes, input_faces):
     """
-    Groups boundary face indices by their BC tags using geometric proximity.
+    Groups boundary face indices by their BC tags.
+    Assigns every boundary face to the closest input segment to avoid KeyError.
     """
-    # 1. Identify all boundary face indices (where neighbor cell is -1)
     boundary_indices = np.where(face_cells[:, 1] == -1)[0]
-    
-    # 2. Calculate midpoints of these boundary faces
     p1_coords = points[face_nodes[boundary_indices, 0]]
     p2_coords = points[face_nodes[boundary_indices, 1]]
     midpoints = 0.5 * (p1_coords + p2_coords)
     
     boundary_map = {}
-    
-    # Create a quick lookup for node coordinates by ID
     node_id_to_idx = {nid: i for i, nid in enumerate(input_nodes['id'])}
     
-    # 3. Match each boundary face to an input segment geometrically
+    # Track the minimum distance and best tag for every boundary face
+    best_tags = np.full(len(boundary_indices), -1, dtype=int)
+    min_dists_sq = np.full(len(boundary_indices), np.inf)
+
     for face in input_faces:
         tag = face['tag']
-        
-        # Get coordinates of the input segment endpoints
         idx1, idx2 = node_id_to_idx[face['n1']], node_id_to_idx[face['n2']]
         x1, y1 = input_nodes['x'][idx1], input_nodes['y'][idx1]
         x2, y2 = input_nodes['x'][idx2], input_nodes['y'][idx2]
         
-        # Check proximity of all boundary midpoints to this segment
+        # Calculate distance of all boundary midpoints to this segment
         cx, cy = get_closest_point_on_segment(midpoints[:, 0], midpoints[:, 1], x1, y1, x2, y2)
-        
-        # Squared distance to the segment
         dists_sq = (midpoints[:, 0] - cx)**2 + (midpoints[:, 1] - cy)**2
         
-        # If the face is on this segment (tolerance of 1e-8)
-        mask = dists_sq < 1e-8
-        
-        if np.any(mask):
-            if tag not in boundary_map:
-                boundary_map[tag] = []
-            # Map the original face indices back
-            boundary_map[tag].extend(boundary_indices[mask].tolist())
+        # Update tags for faces where this segment is the closest found so far
+        closer_mask = dists_sq < min_dists_sq
+        best_tags[closer_mask] = tag
+        min_dists_sq[closer_mask] = dists_sq[closer_mask]
+            
+    # Group the face indices by their assigned tag
+    for tag in np.unique(best_tags):
+        mask = (best_tags == tag)
+        boundary_map[int(tag)] = boundary_indices[mask].tolist()
             
     return {k: np.array(v) for k, v in boundary_map.items()}
