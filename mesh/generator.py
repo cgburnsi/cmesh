@@ -17,16 +17,12 @@ class MeshGenerator:
         self.smoother = smoother if smoother is not None else spring_smoother
 
     def generate(self, niters=1000, n_layers=3):
-        """
-        Generates a mesh using multi-layer frontal seeding and iterative refinement.
-        """
         # 1. Boundary Seeding
         fixed_pts = np.column_stack((self.nodes_in['x'], self.nodes_in['y']))
         sliding_pts, sliding_face_ids = resample_boundary_points(
             self.nodes_in, self.faces_in, self.field, constraints=self.constraints_in
         )
         
-        # Build High-Fidelity Segments for accurate containment
         hf_segments = []
         for i, face in enumerate(self.faces_in):
             p_start, p_end = fixed_pts[face['n1']-1], fixed_pts[face['n2']-1]
@@ -37,19 +33,23 @@ class MeshGenerator:
         hf_segments = np.array(hf_segments)
 
         # 2. Multi-Layer Frontal Inflation
+        # FIX: Track Face IDs through the layers to prevent Tag Mismatch
         current_layer_pts = sliding_pts
+        current_face_ids = sliding_face_ids
         all_frontal_pts = []
+        
         for _ in range(n_layers):
-            new_layer = generate_frontal_points(
-                current_layer_pts, sliding_face_ids, self.nodes_in, self.faces_in, self.field, hf_segments
+            new_layer, new_face_ids = generate_frontal_points(
+                current_layer_pts, current_face_ids, self.nodes_in, self.faces_in, self.field, hf_segments
             )
             all_frontal_pts.append(new_layer)
             current_layer_pts = new_layer
+            current_face_ids = new_face_ids
             
         points = np.vstack([fixed_pts, sliding_pts] + all_frontal_pts)
         n_fixed, n_sliding = len(fixed_pts), len(sliding_pts)
         
-        # 3. Iterative Refinement (Adaptive Growth)
+        # 3. Iterative Refinement
         for ref_iter in range(8):
             tri = Delaunay(points)
             centroids = np.mean(points[tri.simplices], axis=1)
@@ -69,7 +69,6 @@ class MeshGenerator:
                 
             points = np.vstack((points, active_centroids[refine_mask]))
             
-            # Intermediate smoothing: Reduced from 50 to 20 for stability
             points = self.smoother(
                 points, self.nodes_in, self.faces_in, n_sliding, sliding_face_ids, 
                 self.field, niters=20, constraints=self.constraints_in, hf_segments=hf_segments
@@ -88,7 +87,6 @@ class MeshGenerator:
         return final_points, final_cells
 
     def get_quality(self, points, cells):
-        """ Calculates triangle quality metrics for reporting. """
         q_values = compute_triangle_quality(points, cells)
         return q_values, {
             'min': np.min(q_values), 

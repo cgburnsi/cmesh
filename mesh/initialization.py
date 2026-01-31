@@ -5,7 +5,6 @@ from .containment import check_points_inside
 def resample_boundary_points(nodes, faces, sizing_field, constraints=None):
     """
     Distributes points along edges based on the local SizingField. 
-    If face['segments'] == 0, calculates count automatically.
     """
     sliding_points = []
     sliding_face_ids = []
@@ -17,11 +16,9 @@ def resample_boundary_points(nodes, faces, sizing_field, constraints=None):
         p1 = np.array([nodes['x'][idx1], nodes['y'][idx1]])
         p2 = np.array([nodes['x'][idx2], nodes['y'][idx2]])
         
-        # --- Sizing-Driven Segment Calculation ---
         n_segments = face['segments']
         if n_segments <= 0:
             length = np.linalg.norm(p2 - p1)
-            # Query sizing field at midpoint for target 'h'
             h_target = sizing_field((p1 + p2) / 2.0) 
             n_segments = int(np.ceil(length / h_target))
             n_segments = max(n_segments, 1)
@@ -46,7 +43,6 @@ def resample_boundary_points(nodes, faces, sizing_field, constraints=None):
         else:
             sample_pts = p1 + (p2 - p1) * t_samples[:, np.newaxis]
         
-        # Map 't' based on sizing field density for adaptive boundary spacing
         h_vals = sizing_field(sample_pts)
         density = 1.0 / np.maximum(h_vals, 1e-6)
         cumulative = np.cumsum(density)
@@ -66,22 +62,22 @@ def resample_boundary_points(nodes, faces, sizing_field, constraints=None):
             
     return np.array(sliding_points), np.array(sliding_face_ids)
 
-       
-
 def generate_frontal_points(sliding_pts, sliding_face_ids, nodes, faces, sizing_field, hf_segments):
     """
     Generates points offset from boundaries. 
-    UPDATED: Skips non-wall boundaries to prevent centerline clutter.
+    UPDATED: Returns associated face IDs to maintain tag consistency across layers.
     """
     if len(sliding_pts) == 0:
-        return np.empty((0, 2))
+        return np.empty((0, 2)), np.array([], dtype=int)
         
     frontal_pts = []
+    new_face_ids = []
+    
     for i, p in enumerate(sliding_pts):
         f_idx = sliding_face_ids[i]
         face = faces[f_idx]
         
-        # --- FIX: Only generate layers for Physical Walls (Tag 2) ---
+        # Only generate layers for Physical Walls (Tag 2)
         if face['tag'] != 2:
             continue
             
@@ -97,5 +93,7 @@ def generate_frontal_points(sliding_pts, sliding_face_ids, nodes, faces, sizing_
             nx, ny = -nx, -ny 
             
         frontal_pts.append(p + np.array([nx, ny]) * h)
+        new_face_ids.append(f_idx)
         
-    return np.array(frontal_pts)
+    # Ensure return is always (N, 2) even if empty
+    return np.array(frontal_pts).reshape(-1, 2), np.array(new_face_ids)
