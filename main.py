@@ -22,7 +22,7 @@ if __name__ == '__main__':
     
     # 2. Mesh Generation
     mesh = MeshGenerator(data, smoother=distmesh_smoother)
-    points, cells = mesh.generate(niters=1000)
+    points, cells = mesh.generate(niters=100)
     _, q_stats = mesh.get_quality(points, cells)
 
     # --- SEPARATE MESH & GEOMETRY VERIFICATION PLOT ---
