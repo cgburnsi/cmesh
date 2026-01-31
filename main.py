@@ -20,17 +20,21 @@ if __name__ == '__main__':
     gamma = fluid['gamma'] if fluid else 1.4
     bc_values = {row['id']: row['T'] for row in data['boundaries']}
     
-    # 2. Mesh Generation
+    # 2. Mesh Generation [cite: 8, 13]
     mesh = MeshGenerator(data, smoother=distmesh_smoother)
     points, cells = mesh.generate(niters=1000)
     _, q_stats = mesh.get_quality(points, cells)
 
     # --- SEPARATE MESH & GEOMETRY VERIFICATION PLOT ---
-    # This shows the generated mesh wireframe + original geometry nodes
+    # This shows the generated mesh wireframe + analytical constraints
     print("\n--- MESH VERIFICATION: Close plot window to start FVM solver ---")
     mv_data = {'xv': points[:, 0], 'yv': points[:, 1], 'lcv': cells}
     mesh_view = MeshPlotter(arrays=mv_data)
     mesh_view.plot_edges(color='blue', linewidth=0.3)
+    
+    # Draw the green analytical arcs to verify mesh alignment
+    mesh_view.plot_constraints(data['nodes'], data['faces'], data['constraints'])
+    
     mesh_view.plot_geometry(data['nodes'], label_nodes=True)
     mesh_view.ax.set_title("Generated Mesh & Geometry Verification")
     mesh_view.show()
@@ -74,7 +78,6 @@ if __name__ == '__main__':
             P, N = face_cells[f_idx]
             area, dist = face_areas[f_idx], d_PN[f_idx]
             
-            # Diffusion & Advection (Upwind) logic ...
             if N != -1:
                 flux_diff = k * area * (T[N] - T[P]) / dist
             else:

@@ -53,3 +53,28 @@ class MeshPlotter:
         self.fig.colorbar(tpc, ax=self.ax, label='Value')
         self.ax.set_title(title)
         return tpc
+    
+    def plot_constraints(self, nodes, faces, constraints, color='green', linewidth=2):
+        """ Draws the analytical curves (arcs/lines) for verification. """
+        constraint_map = {c['id']: c for c in constraints}
+        
+        for face in faces:
+            n1, n2 = nodes[face['n1']-1], nodes[face['n2']-1]
+            p1 = np.array([n1['x'], n1['y']])
+            p2 = np.array([n2['x'], n2['y']])
+            
+            const = constraint_map.get(face['ctag'])
+            if const is not None and const['type'] == 2: # Circle/Arc
+                cx, cy, R = const['p1'], const['p2'], const['p3']
+                t1, t2 = np.arctan2(p1[1]-cy, p1[0]-cx), np.arctan2(p2[1]-cy, p2[0]-cx)
+                
+                # Handle shortest path
+                dt = t2 - t1
+                if dt > np.pi: dt -= 2*np.pi
+                if dt < -np.pi: dt += 2*np.pi
+                
+                t_fine = np.linspace(t1, t1 + dt, 50)
+                self.ax.plot(cx + R*np.cos(t_fine), cy + R*np.sin(t_fine), 
+                             color=color, lw=linewidth, label='Arc Constraint' if face['id']==2 else "")
+            else:
+                self.ax.plot([p1[0], p2[0]], [p1[1], p2[1]], color='gray', ls='--', lw=1)

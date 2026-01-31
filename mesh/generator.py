@@ -17,7 +17,7 @@ class MeshGenerator:
         self.smoother = smoother if smoother is not None else spring_smoother
 
     def generate(self, niters=1000, refine=True):
-        # 1. Seeding (Fixed, Sliding, and Interior)
+        # 1. Seeding (Fixed, Sliding, and Interior) [cite: 13]
         fixed_pts = np.column_stack((self.nodes_in['x'], self.nodes_in['y']))
         sliding_pts, sliding_face_indices = resample_boundary_points(
             self.nodes_in, self.faces_in, self.field, constraints=self.constraints_in
@@ -27,17 +27,21 @@ class MeshGenerator:
         points = np.vstack((fixed_pts, sliding_pts, interior_pts))
         n_fixed, n_sliding = len(fixed_pts), len(sliding_pts)
         
-        # 2. Initial Smoothing Pass
+        # Define high-fidelity boundary for containment checks 
+        # This prevents the 'straight-line' clipping of circular arcs.
+        boundary_poly = np.vstack((fixed_pts, sliding_pts)) 
+        
+        # 2. Initial Smoothing Pass [cite: 13]
         smoothed_points = self.smoother(
             points.copy(), self.nodes_in, self.faces_in, n_sliding, 
             sliding_face_indices, self.field, niters=niters, constraints=self.constraints_in
         )
         
-        # 3. Refinement
+        # 3. Refinement [cite: 13]
         if refine:
             tri = Delaunay(smoothed_points)
             centroids = np.mean(smoothed_points[tri.simplices], axis=1)
-            active_cells = tri.simplices[check_points_inside(centroids, self.nodes_in, self.faces_in)]
+            active_cells = tri.simplices[check_points_inside(centroids, boundary_poly)]
             q_values = compute_triangle_quality(smoothed_points, active_cells)
             bad_mask = q_values < 0.3
             
@@ -49,10 +53,10 @@ class MeshGenerator:
                     sliding_face_indices, self.field, niters=200, constraints=self.constraints_in
                 )
         
-        # 4. Final Triangulation
+        # 4. Final Triangulation [cite: 13]
         tri_final = Delaunay(smoothed_points)
         c_final = np.mean(smoothed_points[tri_final.simplices], axis=1)
-        final_cells = tri_final.simplices[check_points_inside(c_final, self.nodes_in, self.faces_in)]
+        final_cells = tri_final.simplices[check_points_inside(c_final, boundary_poly)]
         
         return smoothed_points, final_cells
     
