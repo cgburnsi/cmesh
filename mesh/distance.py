@@ -35,9 +35,12 @@ def get_closest_point_on_arc(px, py, cx, cy, R, theta1, theta2):
     
     return cx + R * np.cos(clamped_angle), cy + R * np.sin(clamped_angle)
 
+
+
 def project_points_to_specific_faces(points, face_indices, nodes, faces, constraints=None):
-    """ Projects points strictly to assigned faces, supporting arcs. """
-    constraint_map = {c['target']: c for c in constraints if c['target'] > 0} if constraints is not None else {}
+    """ Projects points strictly to assigned faces, supporting arcs via ctag lookup. """
+    # 1. Build a lookup for constraints based on their ID
+    constraint_map = {c['id']: c for c in constraints} if constraints is not None else {}
     new_pts = np.zeros_like(points)
     
     for i, f_idx in enumerate(face_indices):
@@ -45,15 +48,19 @@ def project_points_to_specific_faces(points, face_indices, nodes, faces, constra
         n1, n2 = nodes[face['n1']-1], nodes[face['n2']-1]
         x1, y1, x2, y2 = n1['x'], n1['y'], n2['x'], n2['y']
         
-        const = constraint_map.get(face['id'])
+        # 2. Look up the constraint using the face's 'ctag'
+        const = constraint_map.get(face['ctag'])
+        
         if const is not None and const['type'] == 2: # Circle/Arc
             cx, cy, R = const['p1'], const['p2'], const['p3']
             t1, t2 = np.arctan2(y1 - cy, x1 - cx), np.arctan2(y2 - cy, x2 - cx)
             new_pts[i] = get_closest_point_on_arc(points[i, 0], points[i, 1], cx, cy, R, t1, t2)
-        else: # Default Line
+        else: 
+            # Default Line logic (ctag 0 or no constraint)
             new_pts[i, 0], new_pts[i, 1] = get_closest_point_on_segment(points[i, 0], points[i, 1], x1, y1, x2, y2)
             
     return new_pts
+
 
 def project_points_to_boundary(points, nodes, faces):
     """ Finds the closest point on ANY boundary face for a list of points. """
