@@ -35,10 +35,10 @@ air         287.05            1.4
 
 [faces]
 # ID   Node1  Node2  BC_Tag  C_Tag  Segments
-1      1      2      1       1      10    # Inlet
-2      2      3      2       2      8    # Inlet Arc (C_Tag 2)
-3      3      4      2       1      15    # Convergent Cone (Line)
-4      4      5      2       3      8     # Throat Arc (C_Tag 3)
-5      5      6      2       1      20    # Divergent Cone (Line)
-6      6      7      3       1      10    # Outlet
-7      7      1      4       1      35    # Symmetry Axis
+1      1      2      1       1      0    # Inlet
+2      2      3      2       2      0    # Inlet Arc (C_Tag 2)
+3      3      4      2       1      0    # Convergent Cone (Line)
+4      4      5      2       3      0    # Throat Arc (C_Tag 3)
+5      5      6      2       1      0    # Divergent Cone (Line)
+6      6      7      3       1      0    # Outlet
+7      7      1      4       1      0    # Symmetry Axis

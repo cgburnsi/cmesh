@@ -4,8 +4,8 @@ from .containment import check_points_inside
 
 def resample_boundary_points(nodes, faces, sizing_field, constraints=None):
     """
-    Distributes points along edges based on the 'segments' count,
-    now aware of geometric constraints (arcs) via the 'ctag' system.
+    Distributes points along edges. 
+    If face['segments'] == 0, calculates count based on local SizingField.
     """
     sliding_points = []
     sliding_face_ids = []
@@ -14,17 +14,30 @@ def resample_boundary_points(nodes, faces, sizing_field, constraints=None):
     constraint_map = {}
     if constraints is not None:
         for c in constraints:
-            # We now use the constraint's ID as the key for tag-based lookups
             if c['id'] > 0:
                 constraint_map[c['id']] = c
     
     for i, face in enumerate(faces):
         idx1, idx2 = face['n1'] - 1, face['n2'] - 1
-        n_segments = face['segments']
-        if n_segments <= 1: continue 
         
         p1 = np.array([nodes['x'][idx1], nodes['y'][idx1]])
         p2 = np.array([nodes['x'][idx2], nodes['y'][idx2]])
+        
+        # --- Sizing-Driven Segment Calculation ---
+        n_segments = face['segments']
+        
+        if n_segments <= 0:
+            # Determine length of the face segment
+            length = np.linalg.norm(p2 - p1)
+            # Query sizing field at the midpoint for target 'h'
+            midpoint = (p1 + p2) / 2.0
+            h_target = sizing_field(midpoint) 
+            n_segments = int(np.ceil(length / h_target))
+            # Ensure at least one segment exists
+            n_segments = max(n_segments, 1)
+
+        if n_segments <= 1: 
+            continue 
         
         # 2. Look up the constraint using the face's 'ctag'
         const = constraint_map.get(face['ctag'])
@@ -74,7 +87,6 @@ def resample_boundary_points(nodes, faces, sizing_field, constraints=None):
     return np.array(sliding_points), np.array(sliding_face_ids)
 
 
-
 def generate_inner_points(nodes, hf_segments, sizing_func):
     """
     Generates internal points using Rejection Sampling.
@@ -105,6 +117,6 @@ def generate_inner_points(nodes, hf_segments, sizing_func):
     dice = np.random.rand(len(candidates))
     points = candidates[dice < probs]
     
-    # FIX: Use the 2-argument call for the new high-fidelity check
+    # Use hf_segments for the high-fidelity check
     mask = check_points_inside(points, hf_segments)
     return points[mask]
